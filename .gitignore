@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+*/.venv/
+*/venv/
+*.venv*/
+*/.venv*/
+
+# Local datasets/artifacts
+**/resume dataset/
+**/testing_resumes/
+
+# Environment and local config
+.env
+*.env
+
+# Flask/session/runtime
+flask_session/
+instance/
+*.log
+
+# Databases and local artifacts
+*.db
+*.sqlite
+*.sqlite3
+
+# Node
+node_modules/
+dist/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,293 @@
+{% extends 'base.html' %}
+
+{% block title %}Station-S | Schedule Interview{% endblock %}
+
+{% block content %}
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+    <h1 style="margin:0;">Schedule Interview: {{ job.title }}</h1>
+    <a href="{{ url_for('main.shortlist_report', job_id=job.id) }}" class="view-interview-button">Back to Shortlist</a>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+    <div class="jobs-wrapper">
+        <h3>Prompt-Based Setup</h3>
+        <p>Describe the interview flow in plain text. Example: "3 rounds. Round 1: coding, 45 min, topics: DSA, Python. Round 2: system design, 60 min. Round 3: HR, 30 min"</p>
+        <textarea id="promptInput" rows="14" style="width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;"></textarea>
+        <div style="margin-top:10px;display:flex;gap:10px;">
+            <button id="extractBtn" type="button" class="view-interview-button">Extract Details From Prompt</button>
+        </div>
+        <p id="extractStatus" style="margin-top:10px;color:#666;"></p>
+    </div>
+
+    <div class="jobs-wrapper">
+        <h3>Manual Interview Configuration</h3>
+        <form method="post" id="scheduleForm">
+            <label for="roundCount"><strong>Number of Rounds</strong></label>
+            <input id="roundCount" type="number" min="1" max="8" value="{{ rounds_data|length if rounds_data else 3 }}" style="width:100%;padding:8px;margin:8px 0 14px;border:1px solid #ccc;border-radius:6px;" />
+
+            <div id="roundsContainer"></div>
+
+            <input type="hidden" name="rounds_payload" id="roundsPayload" />
+
+            <div style="margin-top:14px;display:flex;gap:10px;">
+                <button type="submit" name="form_action" value="save" class="view-interview-button">Save Interview Plan</button>
+                <button type="submit" name="form_action" value="assign_mcq" class="view-interview-button">Assign Rounds to Shortlisted Candidates</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script id="existingRoundsData" type="application/json">{{ rounds_data|tojson }}</script>
+<script>
+const roundsContainer = document.getElementById('roundsContainer');
+const roundCountInput = document.getElementById('roundCount');
+const scheduleForm = document.getElementById('scheduleForm');
+const roundsPayloadInput = document.getElementById('roundsPayload');
+const extractBtn = document.getElementById('extractBtn');
+const promptInput = document.getElementById('promptInput');
+const extractStatus = document.getElementById('extractStatus');
+
+const existingRounds = JSON.parse(document.getElementById('existingRoundsData').textContent || '[]');
+
+function roundCard(index, seed = {}) {
+    const n = index + 1;
+    const focus = Array.isArray(seed.focus_areas) ? seed.focus_areas.join(', ') : (seed.focus_areas || '');
+    const rubric = Array.isArray(seed.evaluation_rubric) ? seed.evaluation_rubric.join(', ') : (seed.evaluation_rubric || '');
+    const advanceValue = seed.advance_count === null || seed.advance_count === undefined ? '' : seed.advance_count;
+    const mcq = seed.mcq_config || {};
+    const mcqQuestions = mcq.num_questions || 15;
+    const mcqTimer = mcq.timer_seconds || 60;
+    const mcqEasy = mcq.easy_percent ?? 20;
+    const mcqMedium = mcq.medium_percent ?? 50;
+    const mcqHard = mcq.hard_percent ?? 30;
+    const coding = seed.coding_config || {};
+    const codingUrl = coding.external_url || 'http://localhost:5173/';
+    const codingQuestions = coding.num_questions || 5;
+    const codingDifficulty = coding.difficulty || 'medium';
+
+    return `
+        <div style="border:1px solid #ddd;border-radius:8px;padding:12px;margin-bottom:12px;">
+            <h4 style="margin:0 0 10px 0;">Round ${n}</h4>
+            <label>Round Name</label>
+            <input type="text" class="round-name" value="${seed.round_name || ('Round ' + n)}" style="width:100%;padding:8px;margin:6px 0 10px;border:1px solid #ccc;border-radius:6px;" />
+
+            <label>Round Type</label>
+            <input type="text" class="round-type" value="${seed.round_type || 'Technical Interview'}" style="width:100%;padding:8px;margin:6px 0 10px;border:1px solid #ccc;border-radius:6px;" />
+
+            <div class="mcq-config" style="display:none;border:1px dashed #bbb;border-radius:6px;padding:10px;margin:0 0 10px 0;">
+                <strong style="display:block;margin-bottom:8px;">MCQ Configuration (Mandatory when round type is MCQ)</strong>
+
+                <label>Number of Questions</label>
+                <input type="number" min="5" max="30" class="mcq-num-questions" value="${mcqQuestions}" style="width:100%;padding:8px;margin:6px 0 10px;border:1px solid #ccc;border-radius:6px;" />
+
+                <label>Time Per Question</label>
+                <select class="mcq-timer" style="width:100%;padding:8px;margin:6px 0 10px;border:1px solid #ccc;border-radius:6px;">
+                    <option value="30" ${mcqTimer === 30 ? 'selected' : ''}>30 seconds</option>
+                    <option value="60" ${mcqTimer === 60 ? 'selected' : ''}>60 seconds</option>
+                    <option value="90" ${mcqTimer === 90 ? 'selected' : ''}>90 seconds</option>
+                    <option value="0" ${mcqTimer === 0 ? 'selected' : ''}>No timer</option>
+                </select>
+
+                <label>Difficulty Distribution (must total 100)</label>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:6px;">
+                    <input type="number" min="0" max="100" class="mcq-easy" placeholder="Easy %" value="${mcqEasy}" style="padding:8px;border:1px solid #ccc;border-radius:6px;" />
+                    <input type="number" min="0" max="100" class="mcq-medium" placeholder="Medium %" value="${mcqMedium}" style="padding:8px;border:1px solid #ccc;border-radius:6px;" />
+                    <input type="number" min="0" max="100" class="mcq-hard" placeholder="Hard %" value="${mcqHard}" style="padding:8px;border:1px solid #ccc;border-radius:6px;" />
+                </div>
+            </div>
+
+            <div class="coding-config" style="display:none;border:1px dashed #bbb;border-radius:6px;padding:10px;margin:0 0 10px 0;">
+                <strong style="display:block;margin-bottom:8px;">Coding Configuration (Mandatory when round type is Coding)</strong>
+
+                <label>Coding Round URL</label>
+                <input type="url" class="coding-url" value="${codingUrl}" style="width:100%;padding:8px;margin:6px 0 10px;border:1px solid #ccc;border-radius:6px;" />
+
+                <label>Number of Questions</label>
+                <input type="number" min="1" max="20" class="coding-num-questions" value="${codingQuestions}" style="width:100%;padding:8px;margin:6px 0 10px;border:1px solid #ccc;border-radius:6px;" />
+
+                <label>Difficulty</label>
+                <select class="coding-difficulty" style="width:100%;padding:8px;margin:6px 0 10px;border:1px solid #ccc;border-radius:6px;">
+                    <option value="easy" ${codingDifficulty === 'easy' ? 'selected' : ''}>Easy</option>
+                    <option value="medium" ${codingDifficulty === 'medium' ? 'selected' : ''}>Medium</option>
+                    <option value="hard" ${codingDifficulty === 'hard' ? 'selected' : ''}>Hard</option>
+                </select>
+            </div>
+
+            <label>Duration (minutes)</label>
+            <input type="number" min="5" class="round-duration" value="${seed.duration_minutes || 30}" style="width:100%;padding:8px;margin:6px 0 10px;border:1px solid #ccc;border-radius:6px;" />
+
+            <label>Focus Areas (comma separated)</label>
+            <input type="text" class="round-focus" value="${focus}" style="width:100%;padding:8px;margin:6px 0 10px;border:1px solid #ccc;border-radius:6px;" />
+
+            <label>Evaluation Rubric (comma separated)</label>
+            <input type="text" class="round-rubric" value="${rubric}" style="width:100%;padding:8px;margin:6px 0 10px;border:1px solid #ccc;border-radius:6px;" />
+
+            <label>Schedule Window</label>
+            <input type="text" class="round-schedule" value="${seed.schedule_window || 'To be scheduled'}" style="width:100%;padding:8px;margin:6px 0 10px;border:1px solid #ccc;border-radius:6px;" />
+
+            <label>Advance Count (optional)</label>
+            <input type="number" min="1" class="round-advance" value="${advanceValue}" style="width:100%;padding:8px;margin:6px 0 0;border:1px solid #ccc;border-radius:6px;" />
+        </div>
+    `;
+}
+
+function isMcqType(roundTypeValue) {
+    const text = (roundTypeValue || '').toLowerCase();
+    return ['mcq', 'assessment', 'quiz', 'aptitude'].some(token => text.includes(token));
+}
+
+function isCodingType(roundTypeValue) {
+    const text = (roundTypeValue || '').toLowerCase();
+    return ['coding', 'dsa', 'algorithm', 'programming'].some(token => text.includes(token));
+}
+
+function syncMcqVisibility(card) {
+    const typeInput = card.querySelector('.round-type');
+    const mcqPanel = card.querySelector('.mcq-config');
+    const codingPanel = card.querySelector('.coding-config');
+    if (!typeInput || !mcqPanel) {
+        return;
+    }
+    mcqPanel.style.display = isMcqType(typeInput.value) ? 'block' : 'none';
+    if (codingPanel) {
+        codingPanel.style.display = isCodingType(typeInput.value) ? 'block' : 'none';
+    }
+}
+
+function renderRounds(count, seedRounds = []) {
+    roundsContainer.innerHTML = '';
+    for (let i = 0; i < count; i++) {
+        roundsContainer.insertAdjacentHTML('beforeend', roundCard(i, seedRounds[i] || {}));
+    }
+
+    Array.from(roundsContainer.children).forEach((card) => {
+        const typeInput = card.querySelector('.round-type');
+        if (typeInput) {
+            typeInput.addEventListener('input', () => syncMcqVisibility(card));
+        }
+        syncMcqVisibility(card);
+    });
+}
+
+function applyRoundCountFromInput() {
+    const count = Math.max(1, Math.min(8, parseInt(roundCountInput.value || '3', 10)));
+    roundCountInput.value = count;
+    renderRounds(count);
+}
+
+roundCountInput.addEventListener('change', applyRoundCountFromInput);
+
+extractBtn.addEventListener('click', async () => {
+    const prompt = promptInput.value.trim();
+    if (!prompt) {
+        extractStatus.textContent = 'Please enter a prompt first.';
+        return;
+    }
+
+    extractStatus.textContent = 'Extracting...';
+    try {
+        const response = await fetch("{{ url_for('main.extract_interview_plan', job_id=job.id) }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt })
+        });
+        const data = await response.json();
+        const rounds = Array.isArray(data.rounds) ? data.rounds : [];
+        if (!rounds.length) {
+            extractStatus.textContent = 'No round details detected from prompt.';
+            return;
+        }
+        roundCountInput.value = rounds.length;
+        renderRounds(rounds.length, rounds);
+        extractStatus.textContent = 'Prompt details loaded. You can edit fields and save.';
+    } catch (error) {
+        extractStatus.textContent = 'Failed to extract details from prompt.';
+    }
+});
+
+scheduleForm.addEventListener('submit', (event) => {
+    const cards = Array.from(roundsContainer.children);
+    let validationError = '';
+    const rounds = cards.map((card, index) => {
+        const name = card.querySelector('.round-name').value.trim();
+        const type = card.querySelector('.round-type').value.trim();
+        const duration = parseInt(card.querySelector('.round-duration').value || '30', 10);
+        const focus = card.querySelector('.round-focus').value.split(',').map(s => s.trim()).filter(Boolean);
+        const rubric = card.querySelector('.round-rubric').value.split(',').map(s => s.trim()).filter(Boolean);
+        const schedule = card.querySelector('.round-schedule').value.trim();
+        const advanceRaw = card.querySelector('.round-advance').value.trim();
+        const isMcq = isMcqType(type);
+        const isCoding = isCodingType(type);
+
+        let mcqConfig = null;
+        let codingConfig = null;
+        if (isMcq) {
+            const numQuestions = parseInt(card.querySelector('.mcq-num-questions').value || '15', 10);
+            const timerSeconds = parseInt(card.querySelector('.mcq-timer').value || '60', 10);
+            const easyPercent = parseInt(card.querySelector('.mcq-easy').value || '20', 10);
+            const mediumPercent = parseInt(card.querySelector('.mcq-medium').value || '50', 10);
+            const hardPercent = parseInt(card.querySelector('.mcq-hard').value || '30', 10);
+            const total = easyPercent + mediumPercent + hardPercent;
+
+            if (total !== 100 && !validationError) {
+                validationError = `Round ${index + 1}: MCQ difficulty must total 100.`;
+            }
+
+            mcqConfig = {
+                num_questions: Number.isNaN(numQuestions) ? 15 : numQuestions,
+                timer_seconds: Number.isNaN(timerSeconds) ? 60 : timerSeconds,
+                easy_percent: Number.isNaN(easyPercent) ? 20 : easyPercent,
+                medium_percent: Number.isNaN(mediumPercent) ? 50 : mediumPercent,
+                hard_percent: Number.isNaN(hardPercent) ? 30 : hardPercent,
+            };
+        }
+
+        if (isCoding) {
+            const codingUrl = card.querySelector('.coding-url').value.trim();
+            const codingNumQuestions = parseInt(card.querySelector('.coding-num-questions').value || '5', 10);
+            const codingDifficulty = card.querySelector('.coding-difficulty').value || 'medium';
+
+            codingConfig = {
+                external_url: codingUrl || 'http://localhost:5173/',
+                num_questions: Number.isNaN(codingNumQuestions) ? 5 : codingNumQuestions,
+                difficulty: codingDifficulty,
+            };
+        }
+
+        return {
+            round_number: index + 1,
+            round_name: name || `Round ${index + 1}`,
+            round_type: type || 'Technical Interview',
+            duration_minutes: Number.isNaN(duration) ? 30 : duration,
+            focus_areas: focus,
+            evaluation_rubric: rubric,
+            schedule_window: schedule || 'To be scheduled',
+            advance_count: advanceRaw ? parseInt(advanceRaw, 10) : null,
+            mcq_config: mcqConfig,
+            coding_config: codingConfig
+        };
+    });
+
+    if (validationError) {
+        event.preventDefault();
+        extractStatus.textContent = validationError;
+        return;
+    }
+
+    if (!rounds.length) {
+        event.preventDefault();
+        extractStatus.textContent = 'Please configure at least one round.';
+        return;
+    }
+
+    roundsPayloadInput.value = JSON.stringify(rounds);
+});
+
+if (existingRounds.length) {
+    roundCountInput.value = existingRounds.length;
+    renderRounds(existingRounds.length, existingRounds);
+} else {
+    renderRounds(parseInt(roundCountInput.value || '3', 10));
+}
+</script>
+{% endblock %}

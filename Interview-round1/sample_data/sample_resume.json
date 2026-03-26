@@ -1,0 +1,61 @@
+{
+  "personal_info": {
+    "name": "John Doe",
+    "email": "john.doe@email.com",
+    "phone": "+1-555-123-4567",
+    "location": "San Francisco, CA"
+  },
+  "summary": "Full-stack software engineer with 5+ years of experience building scalable web applications. Passionate about clean code, microservices architecture, and DevOps practices.",
+  "skills": {
+    "languages": ["Python", "JavaScript", "TypeScript", "Go", "SQL"],
+    "frameworks": ["React", "Node.js", "Django", "FastAPI", "Express.js"],
+    "databases": ["PostgreSQL", "MongoDB", "Redis", "Elasticsearch"],
+    "cloud": ["AWS", "GCP", "Docker", "Kubernetes"],
+    "tools": ["Git", "CI/CD", "Terraform", "Jenkins", "Prometheus"]
+  },
+  "experience": [
+    {
+      "title": "Senior Software Engineer",
+      "company": "TechCorp Inc.",
+      "duration": "2021 - Present",
+      "responsibilities": [
+        "Led development of microservices architecture serving 1M+ users",
+        "Implemented CI/CD pipelines reducing deployment time by 60%",
+        "Mentored junior developers and conducted code reviews",
+        "Designed and built RESTful APIs with FastAPI and Django"
+      ]
+    },
+    {
+      "title": "Software Engineer",
+      "company": "StartupXYZ",
+      "duration": "2019 - 2021",
+      "responsibilities": [
+        "Built React-based dashboard for real-time analytics",
+        "Developed Python microservices for data processing",
+        "Optimized database queries improving performance by 40%",
+        "Implemented authentication system using OAuth 2.0"
+      ]
+    }
+  ],
+  "projects": [
+    {
+      "name": "E-commerce Platform",
+      "description": "Built a scalable e-commerce platform handling 10K+ transactions daily",
+      "technologies": ["React", "Node.js", "PostgreSQL", "Redis", "Docker"]
+    },
+    {
+      "name": "Real-time Chat Application",
+      "description": "Developed WebSocket-based chat application with presence indicators",
+      "technologies": ["Python", "FastAPI", "WebSockets", "MongoDB"]
+    }
+  ],
+  "education": {
+    "degree": "B.S. Computer Science",
+    "university": "University of California, Berkeley",
+    "year": "2019"
+  },
+  "certifications": [
+    "AWS Certified Solutions Architect",
+    "Kubernetes Administrator (CKA)"
+  ]
+}

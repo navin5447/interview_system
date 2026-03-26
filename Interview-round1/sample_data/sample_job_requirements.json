@@ -1,0 +1,74 @@
+{
+  "job_title": "Senior Full-Stack Engineer",
+  "company": "InnovateTech Solutions",
+  "department": "Engineering",
+  "location": "San Francisco, CA (Hybrid)",
+  "employment_type": "Full-time",
+
+  "about_company": "InnovateTech Solutions is a fast-growing SaaS company building next-generation enterprise collaboration tools. We serve Fortune 500 companies and process millions of transactions daily.",
+
+  "role_overview": "We are looking for a Senior Full-Stack Engineer to join our core engineering team. You will be responsible for designing, building, and maintaining scalable web applications that serve millions of users.",
+
+  "responsibilities": [
+    "Design and implement scalable microservices architecture",
+    "Build responsive and performant React-based frontend applications",
+    "Develop RESTful and GraphQL APIs",
+    "Write clean, maintainable, and well-tested code",
+    "Participate in code reviews and mentor junior developers",
+    "Collaborate with product managers and designers",
+    "Optimize application performance and database queries",
+    "Implement CI/CD pipelines and DevOps best practices",
+    "Contribute to system design and architecture decisions"
+  ],
+
+  "required_skills": {
+    "programming_languages": ["Python", "JavaScript/TypeScript"],
+    "frontend": ["React", "Redux", "HTML5", "CSS3"],
+    "backend": ["Node.js", "Django", "FastAPI", "Express.js"],
+    "databases": ["PostgreSQL", "MongoDB", "Redis"],
+    "cloud": ["AWS or GCP", "Docker", "Kubernetes"],
+    "tools": ["Git", "CI/CD tools", "Testing frameworks"]
+  },
+
+  "nice_to_have": [
+    "Experience with GraphQL",
+    "Familiarity with Elasticsearch",
+    "Experience with message queues (RabbitMQ, Kafka)",
+    "Knowledge of infrastructure as code (Terraform)",
+    "Open source contributions"
+  ],
+
+  "experience_requirements": {
+    "minimum_years": 5,
+    "preferred_years": 7,
+    "industries": ["SaaS", "Enterprise Software", "FinTech"]
+  },
+
+  "education": {
+    "required": "Bachelor's degree in Computer Science or related field",
+    "preferred": "Master's degree in Computer Science"
+  },
+
+  "soft_skills": [
+    "Strong problem-solving abilities",
+    "Excellent communication skills",
+    "Ability to work in a fast-paced environment",
+    "Team collaboration",
+    "Self-motivated and proactive"
+  ],
+
+  "technical_assessments": [
+    "System design interview",
+    "Live coding session",
+    "Code review exercise"
+  ],
+
+  "benefits": [
+    "Competitive salary",
+    "Equity package",
+    "Health insurance",
+    "401k matching",
+    "Flexible work hours",
+    "Professional development budget"
+  ]
+}

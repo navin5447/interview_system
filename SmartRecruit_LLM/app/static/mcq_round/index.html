@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Interview Simulator</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>AI Interview Simulator</h1>
+            <p class="subtitle">Powered by Groq LLM</p>
+        </header>
+
+        <!-- Screen 1: Setup -->
+        <div id="setup-screen" class="screen active">
+            <div class="setup-grid">
+                <!-- Left Column: Input Areas -->
+                <div class="input-section">
+                    <div class="input-group full-width">
+                        <label for="job-input">
+                            <span class="label-icon">💼</span>
+                            Job Role & Requirements
+                        </label>
+                        <textarea id="job-input" placeholder="Enter job role and requirements here...&#10;&#10;Include:&#10;- Job Title/Role&#10;- Required Skills & Technologies&#10;- Responsibilities&#10;- Qualifications&#10;- Experience Level"></textarea>
+                    </div>
+                </div>
+
+                <!-- Right Column: Settings -->
+                <div class="settings-section">
+                    <h2>Interview Settings</h2>
+
+                    <div class="setting-group">
+                        <label for="num-questions">
+                            Number of Questions: <span id="num-questions-value">15</span>
+                        </label>
+                        <input type="range" id="num-questions" min="5" max="30" value="15">
+                    </div>
+
+                    <div class="setting-group">
+                        <label for="timer-select">Time Per Question</label>
+                        <select id="timer-select">
+                            <option value="30">30 seconds</option>
+                            <option value="60" selected>60 seconds</option>
+                            <option value="90">90 seconds</option>
+                            <option value="0">No timer</option>
+                        </select>
+                    </div>
+
+                    <div class="setting-group">
+                        <label>Difficulty Distribution</label>
+                        <div class="difficulty-sliders">
+                            <div class="slider-row">
+                                <span class="diff-label easy">Easy</span>
+                                <input type="range" id="easy-percent" min="0" max="100" value="20" class="diff-slider">
+                                <span id="easy-value" class="diff-value">20%</span>
+                            </div>
+                            <div class="slider-row">
+                                <span class="diff-label medium">Medium</span>
+                                <input type="range" id="medium-percent" min="0" max="100" value="50" class="diff-slider">
+                                <span id="medium-value" class="diff-value">50%</span>
+                            </div>
+                            <div class="slider-row">
+                                <span class="diff-label hard">Hard</span>
+                                <input type="range" id="hard-percent" min="0" max="100" value="30" class="diff-slider">
+                                <span id="hard-value" class="diff-value">30%</span>
+                            </div>
+                        </div>
+                        <div id="diff-warning" class="warning hidden">Total must equal 100%</div>
+                    </div>
+                </div>
+            </div>
+
+            <button id="start-btn" class="primary-btn" disabled>
+                <span class="btn-icon">🚀</span>
+                Generate & Start Interview
+            </button>
+            <p id="validation-message" class="validation-message"></p>
+        </div>
+
+        <!-- Screen 2: Interview -->
+        <div id="interview-screen" class="screen">
+            <div class="interview-header">
+                <div class="progress-info">
+                    <span id="question-counter">Question 1 of 15</span>
+                    <div class="progress-bar">
+                        <div id="progress-fill" class="progress-fill"></div>
+                    </div>
+                </div>
+                <div id="timer-display" class="timer">
+                    <span class="timer-icon">⏱️</span>
+                    <span id="timer-value">60</span>s
+                </div>
+            </div>
+
+            <div class="question-container">
+                <div class="question-meta">
+                    <span id="difficulty-badge" class="badge difficulty-medium">Medium</span>
+                    <span id="category-badge" class="badge category">Technical</span>
+                </div>
+                <h2 id="question-text" class="question-text">Loading question...</h2>
+            </div>
+
+            <div id="options-container" class="options-container">
+                <!-- Options will be inserted here -->
+            </div>
+
+            <div class="interview-actions">
+                <button id="next-btn" class="primary-btn" disabled>
+                    Next Question
+                    <span class="btn-arrow">→</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Screen 3: Results -->
+        <div id="results-screen" class="screen">
+            <div class="results-header">
+                <h2>Interview Complete!</h2>
+                <div class="score-circle">
+                    <span id="score-percentage">0%</span>
+                </div>
+                <p id="score-text">0 out of 0 correct</p>
+            </div>
+
+            <div class="results-breakdown">
+                <h3>Performance by Difficulty</h3>
+                <div class="breakdown-grid">
+                    <div class="breakdown-item">
+                        <span class="breakdown-label easy">Easy</span>
+                        <span id="easy-score" class="breakdown-value">0/0</span>
+                    </div>
+                    <div class="breakdown-item">
+                        <span class="breakdown-label medium">Medium</span>
+                        <span id="medium-score" class="breakdown-value">0/0</span>
+                    </div>
+                    <div class="breakdown-item">
+                        <span class="breakdown-label hard">Hard</span>
+                        <span id="hard-score" class="breakdown-value">0/0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="results-details">
+                <h3>Question Review</h3>
+                <div id="question-review-container">
+                    <!-- Question reviews will be inserted here -->
+                </div>
+            </div>
+
+            <div class="results-actions">
+                <button id="retry-btn" class="secondary-btn">
+                    <span class="btn-icon">🔄</span>
+                    Try Again (Same Questions)
+                </button>
+                <button id="new-interview-btn" class="primary-btn">
+                    <span class="btn-icon">✨</span>
+                    New Interview
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="loading-overlay hidden">
+            <div class="loading-content">
+                <div class="spinner"></div>
+                <p>Generating questions with AI...</p>
+                <p class="loading-sub">This may take a few seconds</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
