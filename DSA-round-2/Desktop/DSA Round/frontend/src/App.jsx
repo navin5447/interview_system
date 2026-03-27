@@ -1,11 +1,11 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
-import SetupPage from './pages/SetupPage'
-import InterviewPage from './pages/InterviewPage'
-import ResultsPage from './pages/ResultsPage'
+import { Routes, Route, Navigate } from 'react-router-dom';
+import SetupPage from './pages/SetupPage';
+import InterviewPage from './pages/InterviewPage';
+import ResultsPage from './pages/ResultsPage';
 
 function App() {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-transparent">
       <Routes>
         <Route path="/" element={<SetupPage />} />
         <Route path="/interview/:interviewId" element={<InterviewPage />} />
@@ -13,7 +13,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { getResults } from '../services/api';
+import { AppShell } from '../components/layout/AppShell';
+import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
+import { GradientProgress } from '../components/ui/GradientProgress';
 import {
   Trophy,
   CheckCircle,
@@ -8,7 +13,8 @@ import {
   Clock,
   BarChart3,
   ArrowLeft,
-  Download
+  Zap,
+  Target
 } from 'lucide-react';
 
 function ResultsPage() {
@@ -35,12 +41,24 @@ function ResultsPage() {
 
     try {
       const callback = new URL(submitUrl);
+      const proxyPayloadRaw = sessionStorage.getItem('smartrecruit_proxy_payload') || '';
+      let proxyPayload = { score: 100, events: [] };
+      if (proxyPayloadRaw) {
+        try {
+          proxyPayload = JSON.parse(proxyPayloadRaw);
+        } catch {
+          proxyPayload = { score: 100, events: [] };
+        }
+      }
       callback.searchParams.set('interview_id', interviewId);
       callback.searchParams.set('percentage', String(results.percentage ?? 0));
       callback.searchParams.set('total_score', String(results.total_score ?? 0));
       callback.searchParams.set('max_score', String(results.max_score ?? 0));
       callback.searchParams.set('verdict', String(results.final_verdict ?? ''));
+      callback.searchParams.set('proxy_score', String(proxyPayload.score ?? 100));
+      callback.searchParams.set('proxy_events', JSON.stringify(proxyPayload.events ?? []));
       sessionStorage.removeItem('smartrecruit_submit_url');
+      sessionStorage.removeItem('smartrecruit_proxy_payload');
       setSyncTriggered(true);
       window.location.href = callback.toString();
     } catch (err) {
@@ -59,233 +77,347 @@ function ResultsPage() {
     }
   };
 
-  const getDifficultyColor = (difficulty) => {
-    switch (difficulty) {
-      case 'easy':
-        return 'bg-green-100 text-green-800';
-      case 'medium':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'hard':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getScoreColor = (score, maxScore) => {
-    const percentage = (score / maxScore) * 100;
-    if (percentage >= 80) return 'text-green-600';
-    if (percentage >= 50) return 'text-yellow-600';
-    return 'text-red-600';
-  };
-
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-center">
+      <div className="min-h-screen flex items-center justify-center bg-surfaceMuted">
+        <motion.div
+          className="text-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5 }}
+        >
           <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading results...</p>
-        </div>
+          <p className="text-graphite text-sm font-medium">Loading interview results...</p>
+        </motion.div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-center">
-          <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <p className="text-gray-600">{error}</p>
-          <button
-            onClick={() => navigate('/')}
-            className="mt-4 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+      <motion.div
+        className="min-h-screen flex items-center justify-center bg-surfaceMuted"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+      >
+        <Card className="text-center max-w-md">
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.4 }}
           >
-            Back to Home
-          </button>
-        </div>
-      </div>
+            <XCircle className="w-16 h-16 text-rose-500 mx-auto mb-4" />
+            <p className="text-graphite mb-6">{error}</p>
+            <Button variant="primary" onClick={() => navigate('/')}>
+              <ArrowLeft className="w-4 h-4" />
+              Back to Home
+            </Button>
+          </motion.div>
+        </Card>
+      </motion.div>
     );
   }
 
   const isPassed = results.final_verdict === 'Pass';
+  const percentage = results.percentage || 0;
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+        delayChildren: 0.2,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.5 },
+    },
+  };
 
   return (
-    <div className="min-h-screen bg-gray-100 py-8 px-4">
-      <div className="max-w-4xl mx-auto">
-        {/* Back Button */}
-        <button
+    <AppShell
+      title="Interview Results"
+      subtitle="Your performance summary and detailed breakdown"
+      actions={
+        <Button
+          variant="ghost"
           onClick={() => navigate('/')}
-          className="flex items-center gap-2 text-gray-600 hover:text-gray-800 mb-6"
+          className="px-3 py-1 text-xs flex items-center gap-1"
         >
-          <ArrowLeft className="w-5 h-5" />
-          Start New Interview
-        </button>
-
-        {/* Result Header */}
-        <div className={`rounded-2xl p-8 mb-6 ${isPassed ? 'bg-green-50 border-2 border-green-200' : 'bg-red-50 border-2 border-red-200'}`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className={`w-16 h-16 rounded-full flex items-center justify-center ${isPassed ? 'bg-green-100' : 'bg-red-100'}`}>
-                {isPassed ? (
-                  <Trophy className="w-8 h-8 text-green-600" />
-                ) : (
-                  <XCircle className="w-8 h-8 text-red-600" />
-                )}
+          <ArrowLeft className="w-3 h-3" />
+          New Interview
+        </Button>
+      }
+    >
+      <motion.div
+        className="max-w-5xl mx-auto space-y-6 pb-8"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        {/* Hero Result Card */}
+        <motion.div variants={itemVariants}>
+          <Card className={`px-8 py-12 border-2 ${
+            isPassed
+              ? 'border-emerald-200 bg-gradient-to-br from-emerald-50 via-surface to-surface'
+              : 'border-rose-200 bg-gradient-to-br from-rose-50 via-surface to-surface'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-6">
+                <motion.div
+                  className={`w-20 h-20 rounded-2xl flex items-center justify-center ${
+                    isPassed ? 'bg-emerald-100' : 'bg-rose-100'
+                  }`}
+                  initial={{ scale: 0, rotate: -180 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ type: 'spring', stiffness: 100, delay: 0.3 }}
+                >
+                  {isPassed ? (
+                    <Trophy className={`w-10 h-10 ${isPassed ? 'text-emerald-600' : 'text-rose-600'}`} />
+                  ) : (
+                    <Target className={`w-10 h-10 ${isPassed ? 'text-emerald-600' : 'text-rose-600'}`} />
+                  )}
+                </motion.div>
+                <div>
+                  <h2 className={`text-4xl font-bold ${isPassed ? 'text-emerald-700' : 'text-rose-700'}`}>
+                    {results.final_verdict}
+                  </h2>
+                  <p className={`text-sm ${isPassed ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {isPassed ? '🎉 Great performance!' : 'Keep practicing to improve!'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h1 className={`text-3xl font-bold ${isPassed ? 'text-green-800' : 'text-red-800'}`}>
-                  {results.final_verdict}
-                </h1>
-                <p className={`${isPassed ? 'text-green-600' : 'text-red-600'}`}>
-                  Interview Completed
+
+              <motion.div
+                className="text-right"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.5 }}
+              >
+                <div className={`text-5xl font-bold ${
+                  isPassed ? 'text-emerald-600' : 'text-rose-600'
+                }`}>
+                  {results.total_score}
+                </div>
+                <p className="text-graphite text-xs font-medium mt-1">
+                  of {results.max_score} points
                 </p>
-              </div>
+              </motion.div>
             </div>
+          </Card>
+        </motion.div>
 
-            <div className="text-right">
-              <div className={`text-4xl font-bold ${getScoreColor(results.total_score, results.max_score)}`}>
-                {results.total_score} / {results.max_score}
-              </div>
-              <p className="text-gray-600 text-sm">Points Scored</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-white rounded-xl p-5 shadow-sm">
-            <div className="flex items-center gap-3 mb-2">
-              <BarChart3 className="w-5 h-5 text-primary-600" />
-              <span className="text-gray-600 text-sm">Percentage</span>
-            </div>
-            <p className={`text-2xl font-bold ${getScoreColor(results.percentage, 100)}`}>
-              {results.percentage.toFixed(1)}%
-            </p>
-          </div>
-
-          <div className="bg-white rounded-xl p-5 shadow-sm">
-            <div className="flex items-center gap-3 mb-2">
-              <CheckCircle className="w-5 h-5 text-green-600" />
-              <span className="text-gray-600 text-sm">Questions Submitted</span>
-            </div>
-            <p className="text-2xl font-bold text-gray-800">
-              {results.question_wise.filter(q => q.submitted).length} / {results.question_wise.length}
-            </p>
-          </div>
-
-          <div className="bg-white rounded-xl p-5 shadow-sm">
-            <div className="flex items-center gap-3 mb-2">
-              <Clock className="w-5 h-5 text-blue-600" />
-              <span className="text-gray-600 text-sm">Time Taken</span>
-            </div>
-            <p className="text-2xl font-bold text-gray-800">
-              {results.time_taken_minutes || '--'} min
-            </p>
-          </div>
-        </div>
-
-        {/* Question-wise Results */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-800">Question-wise Breakdown</h2>
-          </div>
-
-          <div className="divide-y divide-gray-100">
-            {results.question_wise.map((question, index) => (
-              <div key={question.question_id} className="px-6 py-4 hover:bg-gray-50">
+        {/* Key Metrics Grid */}
+        <motion.div variants={itemVariants}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Percentage Card */}
+            <Card>
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <span className="text-lg font-medium text-gray-500 w-8">
-                      #{index + 1}
-                    </span>
-                    <div>
-                      <h3 className="font-medium text-gray-800">{question.title}</h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${getDifficultyColor(question.difficulty)}`}>
-                          {question.difficulty}
-                        </span>
-                        {!question.submitted && (
-                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
-                            Not Submitted
-                          </span>
-                        )}
-                      </div>
-                    </div>
+                  <span className="text-graphite text-sm font-medium">Success Rate</span>
+                  <BarChart3 className="w-5 h-5 text-primary-600" />
+                </div>
+                <div>
+                  <div className="text-3xl font-bold text-primary-600">
+                    {percentage.toFixed(1)}%
                   </div>
+                  <div className="mt-3">
+                    <GradientProgress value={percentage} />
+                  </div>
+                </div>
+              </div>
+            </Card>
 
-                  <div className="text-right">
-                    <div className="flex items-center gap-4">
-                      <div className="text-sm">
-                        <span className="text-gray-500">Test Cases: </span>
-                        <span className={`font-medium ${question.passed === question.total ? 'text-green-600' : 'text-orange-600'}`}>
-                          {question.passed}/{question.total}
+            {/* Questions Submitted Card */}
+            <Card>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-graphite text-sm font-medium">Submissions</span>
+                  <CheckCircle className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <div className="text-3xl font-bold text-graphite">
+                    {results.question_wise.filter(q => q.submitted).length} / {results.question_wise.length}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    {results.question_wise.filter(q => q.submitted).length === results.question_wise.length
+                      ? 'All questions submitted'
+                      : `${results.question_wise.length - results.question_wise.filter(q => q.submitted).length} pending`}
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            {/* Time Taken Card */}
+            <Card>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-graphite text-sm font-medium">Time Spent</span>
+                  <Clock className="w-5 h-5 text-sky-600" />
+                </div>
+                <div>
+                  <div className="text-3xl font-bold text-graphite">
+                    {results.time_taken_minutes || '--'} <span className="text-lg">min</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    {results.time_taken_minutes ? 'Interview duration' : 'Time data unavailable'}
+                  </p>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </motion.div>
+
+        {/* Question-wise Breakdown */}
+        <motion.div variants={itemVariants}>
+          <Card>
+            <div className="space-y-1 pb-6 border-b border-borderSubtle">
+              <h3 className="text-lg font-semibold text-graphite">Question-wise Breakdown</h3>
+              <p className="text-xs text-gray-500">
+                Detailed performance for each problem
+              </p>
+            </div>
+
+            <div className="space-y-3 mt-6">
+              {results.question_wise.map((question, index) => (
+                <motion.div
+                  key={question.question_id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.05 * index }}
+                  className="p-4 rounded-xl border border-borderSubtle hover:border-primary-200 hover:bg-surfaceMuted transition-all"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3">
+                        <span className="w-8 h-8 rounded-lg bg-primary-100 text-primary-600 font-semibold text-sm flex items-center justify-center">
+                          {index + 1}
                         </span>
+                        <div className="flex-1">
+                          <h4 className="font-medium text-graphite">{question.title}</h4>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className={`px-2 py-0.5 rounded-md text-xs font-medium ${
+                              question.difficulty === 'easy'
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : question.difficulty === 'medium'
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-rose-100 text-rose-700'
+                            }`}>
+                              {question.difficulty.charAt(0).toUpperCase() + question.difficulty.slice(1)}
+                            </span>
+                            {!question.submitted && (
+                              <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-600">
+                                Not Submitted
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="text-right min-w-[80px]">
-                        <span className={`text-lg font-bold ${getScoreColor(question.score, question.max_score)}`}>
-                          {question.score.toFixed(2)}
-                        </span>
-                        <span className="text-gray-400 text-sm"> / {question.max_score}</span>
+                      {question.submitted && (
+                        <div className="mt-3 ml-11">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs text-gray-500">
+                              Passed: <span className="font-semibold text-graphite">{question.passed}/{question.total}</span> test cases
+                            </span>
+                          </div>
+                          <GradientProgress value={(question.passed / question.total) * 100} />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="text-right flex items-center gap-3">
+                      <div>
+                        <div className={`text-lg font-bold ${
+                          question.passed === question.total && question.submitted
+                            ? 'text-emerald-600'
+                            : question.submitted
+                            ? 'text-amber-600'
+                            : 'text-gray-400'
+                        }`}>
+                          {question.score.toFixed(1)}
+                        </div>
+                        <p className="text-xs text-gray-500">/ {question.max_score}</p>
                       </div>
 
                       {question.passed === question.total && question.submitted ? (
-                        <CheckCircle className="w-6 h-6 text-green-500" />
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ type: 'spring' }}
+                        >
+                          <CheckCircle className="w-6 h-6 text-emerald-600" />
+                        </motion.div>
                       ) : question.submitted ? (
-                        <div className="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center">
-                          <span className="text-white text-xs font-bold">!</span>
+                        <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center">
+                          <Zap className="w-3 h-3 text-white" />
                         </div>
                       ) : (
                         <XCircle className="w-6 h-6 text-gray-300" />
                       )}
                     </div>
                   </div>
-                </div>
+                </motion.div>
+              ))}
+            </div>
+          </Card>
+        </motion.div>
 
-                {/* Progress bar */}
-                {question.submitted && (
-                  <div className="mt-3 ml-12">
-                    <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${question.passed === question.total ? 'bg-green-500' : 'bg-orange-500'}`}
-                        style={{ width: `${(question.passed / question.total) * 100}%` }}
-                      ></div>
-                    </div>
+        {/* Scoring Explanation */}
+        <motion.div variants={itemVariants}>
+          <Card>
+            <div className="space-y-4">
+              <h3 className="font-semibold text-graphite flex items-center gap-2">
+                <Zap className="w-4 h-4 text-primary-600" />
+                How Scoring Works
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {[
+                  { level: 'Easy', points: '1 point', color: 'bg-emerald-100 text-emerald-700' },
+                  { level: 'Medium', points: '2 points', color: 'bg-amber-100 text-amber-700' },
+                  { level: 'Hard', points: '3 points', color: 'bg-rose-100 text-rose-700' },
+                ].map((item, idx) => (
+                  <div key={idx} className="p-3 rounded-lg bg-surfaceMuted">
+                    <p className="text-xs font-medium text-gray-600">{item.level}</p>
+                    <p className={`text-sm font-bold mt-1 ${item.color.split(' ')[1]}`}>
+                      {item.points}
+                    </p>
                   </div>
-                )}
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
+              <p className="text-xs text-gray-500 pt-2 border-t border-borderSubtle">
+                Score = (passed test cases / total test cases) × difficulty weight
+              </p>
+            </div>
+          </Card>
+        </motion.div>
 
-        {/* Scoring Legend */}
-        <div className="mt-6 bg-white rounded-xl p-6 shadow-sm">
-          <h3 className="font-medium text-gray-800 mb-3">Scoring System</h3>
-          <div className="flex items-center gap-6 text-sm text-gray-600">
-            <span className="flex items-center gap-2">
-              <span className="w-4 h-4 bg-green-500 rounded"></span>
-              Easy: 1 point
-            </span>
-            <span className="flex items-center gap-2">
-              <span className="w-4 h-4 bg-yellow-500 rounded"></span>
-              Medium: 2 points
-            </span>
-            <span className="flex items-center gap-2">
-              <span className="w-4 h-4 bg-red-500 rounded"></span>
-              Hard: 3 points
-            </span>
-          </div>
-          <p className="text-xs text-gray-500 mt-2">
-            Score per question = (passed tests / total tests) × difficulty weight
+        {/* Footer */}
+        <motion.div
+          variants={itemVariants}
+          className="text-center pt-4"
+        >
+          <p className="text-xs text-gray-500 mb-4">
+            Interview ID: <span className="font-mono text-gray-600">{interviewId}</span>
           </p>
-        </div>
-
-        {/* Interview ID */}
-        <div className="mt-6 text-center text-sm text-gray-500">
-          Interview ID: {interviewId}
-        </div>
-      </div>
-    </div>
+          <Button
+            variant="primary"
+            onClick={() => navigate('/')}
+            className="px-6 py-3 text-sm"
+          >
+            <BarChart3 className="w-4 h-4" />
+            Start New Interview
+          </Button>
+        </motion.div>
+      </motion.div>
+    </AppShell>
   );
 }
 

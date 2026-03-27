@@ -100,7 +100,7 @@ class CodingRoundConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     job_id = db.Column(db.Integer, db.ForeignKey('job.id'), nullable=False)
     round_number = db.Column(db.Integer, nullable=False)
-    external_url = db.Column(db.String(500), nullable=False, default='https://github.com/Askar7863/DSA-round-2.git')
+    external_url = db.Column(db.String(500), nullable=False, default='http://127.0.0.1:3000/')
     num_questions = db.Column(db.Integer, nullable=False, default=5)
     difficulty = db.Column(db.String(20), nullable=False, default='medium')
 
@@ -170,11 +170,43 @@ class Application(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     job_id = db.Column(db.Integer, db.ForeignKey('job.id'), nullable=False)
-    message = db.Column(db.Text, nullable=False)
+    resume_file = db.Column(db.String(120), nullable=False)
+    message = db.Column(db.Text, nullable=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     status = db.Column(db.String(20), nullable=False, default='Pending')
 
     user = db.relationship('User', backref=db.backref('applications', lazy=True))
     job = db.relationship('Job', backref=db.backref('applications', lazy=True))
+
+    @property
+    def candidate_status(self):
+        pipeline_state = ApplicantPipelineState.query.filter_by(application_id=self.id).first()
+        pipeline_value = (pipeline_state.state if pipeline_state else '').upper()
+        raw_status = (self.status or '').upper()
+
+        hired_states = {'HIRED', 'OFFER', 'OFFER_RELEASED', 'SELECTED', 'ACCEPTED'}
+        rejected_states = {'REJECTED', 'ELIMINATED', 'FINAL_REJECTION'}
+        review_states = {'UNDER_REVIEW', 'RECOMMENDED'}
+
+        if pipeline_value in rejected_states or 'REJECT' in pipeline_value or raw_status in rejected_states:
+            return 'Rejected'
+
+        if pipeline_value in hired_states or raw_status in hired_states:
+            return 'Hired'
+
+        if pipeline_value in review_states or raw_status in {'UNDER REVIEW', 'RECOMMENDED'}:
+            return 'Under review'
+
+        total_rounds = InterviewRoundConfig.query.filter_by(job_id=self.job_id).count()
+        completed_rounds = RoundEvaluation.query.filter_by(application_id=self.id).count()
+
+        if total_rounds > 0 and completed_rounds >= total_rounds:
+            return 'Under review'
+
+        return 'In progress'
+
+    @property
+    def dynamic_status(self):
+        return self.candidate_status
 
     __table_args__ = (db.UniqueConstraint('user_id', 'job_id', name='unique_user_job_application'),)

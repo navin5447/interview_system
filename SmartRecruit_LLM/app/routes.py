@@ -15,6 +15,7 @@ import urllib.error
 import urllib.request
 from urllib.parse import urlencode
 
+
 from . import db, applications_collection
 from .models import (
     User,
@@ -41,9 +42,19 @@ from .pipeline import (
     should_auto_shortlist,
     upsert_pipeline_state,
 )
-from .utils import allowed_file, evaluate_cv, extract_score, generate_interview_questions, generate_feedback, convert_keys_to_strings
+from .utils import allowed_file, evaluate_cv, extract_score, generate_interview_questions, generate_feedback, convert_keys_to_strings, parse_job_description_pdf
 
 main = Blueprint('main', __name__)
+
+
+def _default_technical_round_url() -> str:
+    configured = str(current_app.config.get('TECHNICAL_ROUND_URL', 'http://127.0.0.1:3000/')).strip()
+    return configured or 'http://127.0.0.1:3000/'
+
+
+def _default_coding_round_url() -> str:
+    configured = str(current_app.config.get('CODING_ROUND_URL', 'http://127.0.0.1:5173/')).strip()
+    return configured or 'http://127.0.0.1:5173/'
 
 
 def mongo_find_one(query):
@@ -89,12 +100,15 @@ def _extract_interview_plan_from_prompt(prompt: str) -> list[dict]:
     if not content:
         return []
 
+
     rounds_count_match = re.search(r"(\d+)\s*round", content, flags=re.IGNORECASE)
     rounds_count = int(rounds_count_match.group(1)) if rounds_count_match else 3
     rounds_count = max(1, min(8, rounds_count))
 
+
     global_duration_match = re.search(r"(\d+)\s*(?:minutes|min)", content, flags=re.IGNORECASE)
     default_duration = int(global_duration_match.group(1)) if global_duration_match else 30
+
 
     explicit_rounds = []
     round_pattern = re.compile(
@@ -216,6 +230,11 @@ def _is_mcq_round_type(round_type: str | None, round_name: str | None = None) ->
 def _is_coding_round_type(round_type: str | None, round_name: str | None = None) -> bool:
     lowered = f"{round_type or ''} {round_name or ''}".lower()
     return any(token in lowered for token in ['coding', 'dsa', 'algorithm', 'programming'])
+
+
+def _is_interview_round_type(round_type: str | None, round_name: str | None = None) -> bool:
+    lowered = f"{round_type or ''} {round_name or ''}".lower()
+    return any(token in lowered for token in ['interview', 'technical', 'voice', 'video', 'hr'])
 
 
 def _get_first_assignable_round(job_id: int) -> InterviewRoundConfig | None:
@@ -368,8 +387,26 @@ def applicant_dashboard():
 @main.route('/jobs')
 @role_required('applicant', 'both')
 def browse_jobs():
-    jobs = Job.query.filter(Job.user_id != g.user.id).all()
-    return render_template('snippet_career_list.html', jobs=jobs)
+    jobs = Job.query.filter(Job.user_id != g.user.id).order_by(Job.date_posted.desc()).all()
+
+    sqlite_apps = Application.query.filter_by(user_id=g.user.id).all()
+    applied_by_job_id = {item.job_id: item for item in sqlite_apps}
+
+    available_jobs = [job for job in jobs if job.id not in applied_by_job_id]
+    applied_jobs = [
+        {
+            'job': job,
+            'application': applied_by_job_id[job.id],
+        }
+        for job in jobs
+        if job.id in applied_by_job_id
+    ]
+
+    return render_template(
+        'snippet_career_list.html',
+        available_jobs=available_jobs,
+        applied_jobs=applied_jobs,
+    )
 
 @main.route('/sign', methods=['GET', 'POST'])
 def auth():
@@ -587,7 +624,7 @@ def create_job():
                     CodingRoundConfig(
                         job_id=new_job.id,
                         round_number=round_row['round_number'],
-                        external_url=str(coding_conf.get('external_url', 'http://localhost:5173/')).strip(),
+                        external_url=str(coding_conf.get('external_url', _default_coding_round_url())).strip(),
                         num_questions=int(coding_conf.get('num_questions', 5)),
                         difficulty=str(coding_conf.get('difficulty', 'medium')).strip().lower(),
                     )
@@ -731,9 +768,19 @@ def settings():
 def job_detail(job_id):
     job = Job.query.get_or_404(job_id)
     job.description = markdown(job.description)
-    return render_template('job_detail.html', job=job)
 
-@main.route('/apply/<int:job_id>', methods=['GET'])
+    has_applied = False
+    if g.user.has_role('applicant', 'both'):
+        existing_application_sqlite = Application.query.filter_by(user_id=g.user.id, job_id=job_id).first()
+        existing_application_mongo = mongo_find_one({
+            'user_id': str(g.user.id),
+            'job_id': str(job_id)
+        })
+        has_applied = bool(existing_application_sqlite or existing_application_mongo)
+
+    return render_template('job_detail.html', job=job, has_applied=has_applied)
+
+@main.route('/apply/<int:job_id>', methods=['GET', 'POST'])
 @role_required('applicant', 'both')
 def apply(job_id):
     job = Job.query.get_or_404(job_id)
@@ -752,14 +799,70 @@ def apply(job_id):
         flash('You have already applied for this job.', 'alert')
         return redirect(url_for('main.job_detail', job_id=job_id))
 
-    if not g.user.cv_file:
-        flash('Please upload your CV in settings before applying.', 'danger')
-        return redirect(url_for('main.settings'))
+    if request.method == 'GET':
+        return render_template('apply.html', job=job)
 
-    cv_path = os.path.join(current_app.config['UPLOAD_FOLDER_CV'], g.user.cv_file)
-    if not os.path.isfile(cv_path):
-        flash('CV file not found. Please upload again.', 'danger')
-        return redirect(url_for('main.settings'))
+    # POST request handling
+    resume_choice = request.form.get('resume_choice')
+    cv_path = None
+    resume_filename = None
+
+    if resume_choice == 'profile':
+        if not g.user.cv_file:
+            flash('Please upload your CV in settings before applying.', 'danger')
+            return redirect(url_for('main.settings'))
+        
+        cv_path = os.path.join(current_app.config['UPLOAD_FOLDER_CV'], g.user.cv_file)
+        resume_filename = g.user.cv_file
+        if not os.path.isfile(cv_path):
+            flash('CV file not found. Please upload again.', 'danger')
+            return redirect(url_for('main.settings'))
+    
+    elif resume_choice == 'new':
+        if 'resume' not in request.files:
+            flash('No resume file selected.', 'danger')
+            return redirect(request.url)
+        
+        file = request.files['resume']
+        if file.filename == '':
+            flash('No selected file.', 'danger')
+            return redirect(request.url)
+
+        file_size = file.content_length
+        if file_size is None:
+            current_pos = file.stream.tell()
+            file.stream.seek(0, os.SEEK_END)
+            file_size = file.stream.tell()
+            file.stream.seek(current_pos)
+
+        if file_size and file_size > current_app.config['MAX_CV_FILE_SIZE']:
+            flash('The resume file is too large. The maximum size is 5MB.', 'danger')
+            return redirect(request.url)
+
+        if file and allowed_file(file.filename):
+            resume_filename = secure_filename(file.filename)
+            # Create a unique filename to avoid overwrites
+            timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+            unique_filename = f"{timestamp}_{g.user.id}_{resume_filename}"
+            
+            upload_folder = os.path.join(current_app.config['UPLOAD_FOLDER_CV'], 'applications')
+            if not os.path.exists(upload_folder):
+                os.makedirs(upload_folder)
+            
+            cv_path = os.path.join(upload_folder, unique_filename)
+            file.save(cv_path)
+            resume_filename = os.path.join('applications', unique_filename)
+        else:
+            flash('Invalid file type for resume.', 'danger')
+            return redirect(request.url)
+    
+    else:
+        flash('Invalid resume option selected.', 'danger')
+        return redirect(request.url)
+
+    if not cv_path:
+        flash('Could not determine resume path.', 'danger')
+        return redirect(request.url)
 
     try:
         parsed_resume = parse_resume_to_json(cv_path)
@@ -773,6 +876,7 @@ def apply(job_id):
     new_application = Application(
         user_id=g.user.id,
         job_id=job_id,
+        resume_file=resume_filename,
         message=str(score.ats_score),
         timestamp=datetime.utcnow(),
         status='Applied'
@@ -955,37 +1059,87 @@ def complete_round(job_id, round_number):
 @main.route('/view_applications')
 @role_required('applicant', 'both')
 def view_applications():
-    applications = Application.query.filter_by(user_id=g.user.id).all()
-    app_ids = [item.id for item in applications]
+    applications = db.session.query(
+        Application,
+        ApplicantPipelineState.state
+    ).outerjoin(
+        ApplicantPipelineState, Application.id == ApplicantPipelineState.application_id
+    ).filter(
+        Application.user_id == g.user.id
+    ).order_by(
+        Application.timestamp.desc()
+    ).all()
+
+    app_ids = [app.id for app, state in applications]
     assignments = MCQRoundAssignment.query.filter(
         MCQRoundAssignment.application_id.in_(app_ids),
         MCQRoundAssignment.is_active.is_(True)
     ).all() if app_ids else []
     assigned_ids = {item.application_id for item in assignments}
 
-    # Fetch job details for each application
     applications_list = []
-    for app in applications:
+    for app, state in applications:
         job = Job.query.get(app.job_id)
         assignment = next((item for item in assignments if item.application_id == app.id), None)
-        assigned_round = assignment.round_number if assignment else 1
-        assigned_round_cfg = InterviewRoundConfig.query.filter_by(job_id=app.job_id, round_number=assigned_round).first()
+        assigned_round = assignment.round_number if assignment else None
+        
+        # If no explicit assignment, determine the next available round
+        if assigned_round is None:
+            all_rounds = InterviewRoundConfig.query.filter_by(job_id=app.job_id).order_by(InterviewRoundConfig.round_number.asc()).all()
+            
+            # Find which rounds the candidate has completed
+            completed_evaluations = RoundEvaluation.query.filter_by(job_id=app.job_id, application_id=app.id).all()
+            completed_round_numbers = {eval.round_number for eval in completed_evaluations}
+            
+            # Find the next unstarted round that matches applicant status
+            current_status = app.dynamic_status
+            workflow_state = (state or '').upper()
+            base_status = (app.status or '').upper()
+            can_start_from_state = (
+                workflow_state in {'SHORTLISTED', 'ADVANCED'}
+                or workflow_state.endswith('_SCHEDULED')
+                or base_status in {'SHORTLISTED', 'ADVANCED'}
+            )
+            
+            if can_start_from_state:
+                for round_cfg in all_rounds:
+                    if round_cfg.round_number not in completed_round_numbers:
+                        assigned_round = round_cfg.round_number
+                        break
+        
+        assigned_round_cfg = InterviewRoundConfig.query.filter_by(job_id=app.job_id, round_number=assigned_round).first() if assigned_round else None
         assigned_round_type = assigned_round_cfg.round_type if assigned_round_cfg else ''
         assigned_round_name = assigned_round_cfg.round_name if assigned_round_cfg else ''
         is_mcq_round = _is_mcq_round_type(assigned_round_type, assigned_round_name)
         is_coding_round = _is_coding_round_type(assigned_round_type, assigned_round_name)
+        is_interview_round = _is_interview_round_type(assigned_round_type, assigned_round_name)
+
+        current_status = app.dynamic_status
+        workflow_state = (state or '').upper()
+        base_status = (app.status or '').upper()
+        can_start_from_state = (
+            workflow_state in {'SHORTLISTED', 'ADVANCED'}
+            or workflow_state.endswith('_SCHEDULED')
+            or base_status in {'SHORTLISTED', 'ADVANCED'}
+        )
+
+        # For MCQ/Coding rounds, require explicit assignment; for interview rounds, just check status
         can_launch_test = (
-            (is_mcq_round or is_coding_round)
-            and app.status in {'Shortlisted', 'Advanced'}
-            and app.id in assigned_ids
+            (is_mcq_round or is_coding_round or is_interview_round)
+            and can_start_from_state
+            and assigned_round is not None
             and _is_round_window_open(assigned_round_cfg.schedule_window if assigned_round_cfg else None)
         )
+        
         launch_url = None
         launch_label = None
         if can_launch_test:
             if is_coding_round:
                 launch_url = url_for('main.start_coding_round', application_id=app.id, round_number=assigned_round)
                 launch_label = f"Start Round {assigned_round} Coding"
+            elif is_interview_round:
+                launch_url = url_for('main.start_interview_round', application_id=app.id, round_number=assigned_round)
+                launch_label = f"Start Round {assigned_round} Interview"
             else:
                 launch_url = url_for('main.start_mcq_round', application_id=app.id, round_number=assigned_round)
                 launch_label = f"Start Round {assigned_round} Assessment"
@@ -994,7 +1148,7 @@ def view_applications():
             'id': app.id,
             'job_title': job.title if job else 'Unknown',
             'application_date': app.timestamp,
-            'status': app.status,
+            'status': current_status,
             'round_launch_url': launch_url,
             'round_launch_label': launch_label,
         })
@@ -1072,6 +1226,7 @@ def start_mcq_round(application_id, round_number):
             'candidate_mode': 1,
             'application_id': application.id,
             'round_number': round_number,
+            'proxy_round': 'aptitude' if 'aptitude' in ((round_config.round_type or '') + ' ' + (round_config.round_name or '')).lower() else 'mcq',
             'submit_url': url_for('main.submit_mcq_round_result', application_id=application.id, round_number=round_number),
         }
     )
@@ -1120,11 +1275,13 @@ def start_coding_round(application_id, round_number):
         return redirect(url_for('main.view_applications'))
 
     coding_config = CodingRoundConfig.query.filter_by(job_id=job.id, round_number=round_number).first()
-    coding_url = (coding_config.external_url if coding_config else 'http://localhost:5173/').strip()
+    coding_url = (coding_config.external_url if coding_config else _default_coding_round_url()).strip()
     if not coding_url:
-        coding_url = 'http://localhost:5173/'
+        coding_url = _default_coding_round_url()
     if 'github.com' in coding_url.lower() or coding_url.lower().endswith('.git'):
-        coding_url = 'http://localhost:5173/'
+        coding_url = _default_coding_round_url()
+    if re.match(r'^https?://(127\.0\.0\.1|localhost):3000/?$', coding_url, re.IGNORECASE):
+        coding_url = _default_coding_round_url()
 
     selected_difficulty = (coding_config.difficulty if coding_config else 'medium').strip().lower()
     total_questions = int(coding_config.num_questions if coding_config else 5)
@@ -1144,6 +1301,7 @@ def start_coding_round(application_id, round_number):
             'application_id': application.id,
             'job_id': job.id,
             'round_number': round_number,
+            'proxy_round': 'coding',
             'submit_url': url_for('main.submit_coding_round_result', application_id=application.id, round_number=round_number, _external=True),
             'candidate_name': f"{g.user.first_name} {g.user.last_name}",
             'job_title': job.title,
@@ -1151,6 +1309,48 @@ def start_coding_round(application_id, round_number):
     )
     separator = '&' if '?' in coding_url else '?'
     return redirect(f"{coding_url}{separator}{query}")
+
+
+@main.route('/application/<int:application_id>/start_interview_round/<int:round_number>')
+@role_required('applicant', 'both')
+def start_interview_round(application_id, round_number):
+    application = Application.query.get_or_404(application_id)
+    if application.user_id != g.user.id:
+        abort(403)
+
+    job = Job.query.get_or_404(application.job_id)
+    round_config = InterviewRoundConfig.query.filter_by(job_id=job.id, round_number=round_number).first()
+    if round_config is None:
+        flash(f'Round {round_number} not configured', 'danger')
+        return redirect(url_for('main.view_applications'))
+
+    if not _is_interview_round_type(round_config.round_type, round_config.round_name):
+        flash('This is not an interview round.', 'danger')
+        return redirect(url_for('main.view_applications'))
+
+    # Check application status - must be Shortlisted or Advanced to access interview rounds
+    if application.status not in {'Shortlisted', 'Advanced'}:
+        flash('You are not eligible for this interview round yet.', 'danger')
+        return redirect(url_for('main.view_applications'))
+
+    # Check if round window is open
+    if not _is_round_window_open(round_config.schedule_window):
+        flash(f"Round {round_number} is available only during the schedule window: {round_config.schedule_window}", 'danger')
+        return redirect(url_for('main.view_applications'))
+
+    interview_url = 'http://127.0.0.1:3000/'
+    query = urlencode(
+        {
+            'application_id': application.id,
+            'round_number': round_number,
+            'job_id': job.id,
+            'proxy_round': 'technical',
+            'candidate_name': f"{g.user.first_name} {g.user.last_name}",
+            'job_title': job.title,
+        }
+    )
+    separator = '&' if '?' in interview_url else '?'
+    return redirect(f"{interview_url}{separator}{query}")
 
 
 @main.route('/application/<int:application_id>/mcq_round/<int:round_number>/submit_result', methods=['POST'])
@@ -1186,6 +1386,12 @@ def submit_mcq_round_result(application_id, round_number):
 
     score_payload = results_data.get('score') or {}
     round_score = float(score_payload.get('percentage') or 0.0)
+    proxy_score = payload.get('proxy_score')
+    proxy_events = payload.get('proxy_events') or []
+    try:
+        proxy_score = float(proxy_score) if proxy_score is not None else None
+    except (TypeError, ValueError):
+        proxy_score = None
 
     existing = RoundEvaluation.query.filter_by(application_id=application.id, round_number=round_number).first()
     evaluation_data = {
@@ -1196,6 +1402,8 @@ def submit_mcq_round_result(application_id, round_number):
         'category_breakdown': results_data.get('category_breakdown', {}),
         'total_questions': int(score_payload.get('total') or 0),
         'correct_answers': int(score_payload.get('correct') or 0),
+        'proxy_score': proxy_score,
+        'proxy_events': proxy_events,
     }
 
     if existing is None:
@@ -1284,6 +1492,19 @@ def submit_coding_round_result(application_id, round_number):
         (payload or {}).get('verdict')
         or request.args.get('verdict')
     )
+    proxy_score = (
+        (payload or {}).get('proxy_score')
+        or request.args.get('proxy_score')
+    )
+    proxy_events = (
+        (payload or {}).get('proxy_events')
+        or request.args.get('proxy_events')
+        or []
+    )
+    try:
+        proxy_score = float(proxy_score) if proxy_score is not None else None
+    except (TypeError, ValueError):
+        proxy_score = None
 
     existing = RoundEvaluation.query.filter_by(application_id=application.id, round_number=round_number).first()
     evaluation_data = {
@@ -1293,6 +1514,8 @@ def submit_coding_round_result(application_id, round_number):
         'total_score': total_score,
         'max_score': max_score,
         'verdict': verdict,
+        'proxy_score': proxy_score,
+        'proxy_events': proxy_events,
     }
 
     if existing is None:
@@ -1354,13 +1577,27 @@ def view_candidates(job_id):
 
     target_round = _get_first_assignable_round(job_id)
 
+    completed_first_round_ids = set()
+    if target_round is not None and app_ids:
+        completed_rows = RoundEvaluation.query.filter(
+            RoundEvaluation.application_id.in_(app_ids),
+            RoundEvaluation.job_id == job_id,
+            RoundEvaluation.round_number == target_round.round_number,
+        ).all()
+        completed_first_round_ids = {row.application_id for row in completed_rows}
+
     round_configs = InterviewRoundConfig.query.filter_by(job_id=job_id).order_by(InterviewRoundConfig.round_number.asc()).all()
     candidates = []
     for app in applications:
         user = User.query.get(app.user_id)
         if user is None:
             continue
-        can_assign_mcq = target_round is not None and app.status in {'Shortlisted', 'Advanced'} and app.id not in assigned_ids
+        can_assign_mcq = (
+            target_round is not None
+            and app.status in {'Shortlisted', 'Advanced'}
+            and app.id not in assigned_ids
+            and app.id not in completed_first_round_ids
+        )
         candidates.append({
             'application_id': app.id,
             'name': f"{user.first_name} {user.last_name}",
@@ -1541,7 +1778,7 @@ def schedule_interview(job_id):
                     CodingRoundConfig(
                         job_id=job.id,
                         round_number=round_row['round_number'],
-                        external_url=str(coding_conf.get('external_url', 'http://localhost:5173/')).strip(),
+                        external_url=str(coding_conf.get('external_url', _default_coding_round_url())).strip(),
                         num_questions=int(coding_conf.get('num_questions', 5)),
                         difficulty=str(coding_conf.get('difficulty', 'medium')).strip().lower(),
                     )
@@ -1643,6 +1880,74 @@ def schedule_interview(job_id):
     return render_template('schedule_interview.html', job=job, rounds_data=rounds_data)
 
 
+@main.route('/api/mark-round-complete', methods=['POST'])
+def mark_round_complete():
+    try:
+        data = request.get_json(silent=True) or {}
+        application_id = data.get('application_id')
+        round_number = data.get('round_number')
+        round_score = data.get('round_score', 0)
+        evaluation_data = data.get('evaluation_data') or {}
+
+        if not application_id or not round_number:
+            return jsonify({'error': 'Missing application_id or round_number'}), 400
+
+        try:
+            application_id = int(application_id)
+            round_number = int(round_number)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'application_id and round_number must be integers'}), 400
+
+        try:
+            round_score = float(round_score)
+        except (TypeError, ValueError):
+            round_score = 0.0
+
+        assignment = MCQRoundAssignment.query.filter_by(
+            application_id=application_id,
+            round_number=round_number,
+        ).first()
+
+        application = Application.query.get(application_id)
+        if application is None:
+            return jsonify({'error': 'Application not found'}), 404
+
+        if assignment:
+            assignment.is_active = False
+            assignment.assigned_at = datetime.utcnow()
+
+        existing_eval = RoundEvaluation.query.filter_by(
+            application_id=application_id,
+            round_number=round_number,
+        ).first()
+
+        if existing_eval:
+            existing_eval.round_score = round_score
+            existing_eval.evaluation_data = evaluation_data if isinstance(evaluation_data, dict) else {'raw': evaluation_data}
+            existing_eval.completed_at = datetime.utcnow()
+        else:
+            db.session.add(
+                RoundEvaluation(
+                    application_id=application_id,
+                    applicant_id=application.user_id,
+                    job_id=application.job_id,
+                    round_number=round_number,
+                    round_score=round_score,
+                    evaluation_data=evaluation_data if isinstance(evaluation_data, dict) else {'raw': evaluation_data},
+                    completed_at=datetime.utcnow(),
+                )
+            )
+
+        upsert_pipeline_state(application=application, state='UNDER_REVIEW')
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'Round {round_number} marked as completed'}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Error marking round complete: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
 @main.route('/job/<int:job_id>/round_scoring')
 @role_required('recruiter', 'both')
 def round_scoring_overview(job_id):
@@ -1653,6 +1958,67 @@ def round_scoring_overview(job_id):
     round_configs = InterviewRoundConfig.query.filter_by(job_id=job_id).order_by(InterviewRoundConfig.round_number.asc()).all()
     applications = Application.query.filter_by(job_id=job_id).all()
     users_by_id = {user.id: user for user in User.query.filter(User.id.in_([app.user_id for app in applications])).all()} if applications else {}
+
+    evaluation_rows_all = RoundEvaluation.query.filter_by(job_id=job_id).all()
+    evaluations_by_app_and_round = {
+        (row.application_id, row.round_number): row for row in evaluation_rows_all
+    }
+
+    matrix_rows = []
+    for app in applications:
+        user = users_by_id.get(app.user_id)
+        if user is None:
+            continue
+
+        include_row = app.status in {'Shortlisted', 'Advanced'} or any(
+            row.application_id == app.id for row in evaluation_rows_all
+        )
+        if not include_row:
+            continue
+
+        completed_rounds = {
+            row.round_number for row in evaluation_rows_all if row.application_id == app.id
+        }
+
+        next_assigned_round = 1
+        while next_assigned_round in completed_rounds:
+            next_assigned_round += 1
+
+        round_cells = []
+        total_score = 0.0
+        has_any_score = False
+
+        for round_config in round_configs:
+            evaluation = evaluations_by_app_and_round.get((app.id, round_config.round_number))
+            if evaluation is not None:
+                score_value = float(evaluation.round_score)
+                total_score += score_value
+                has_any_score = True
+                round_cells.append({
+                    'score': score_value,
+                    'assigned': False,
+                })
+                continue
+
+            is_assigned = (
+                app.status in {'Shortlisted', 'Advanced'}
+                and round_config.round_number == next_assigned_round
+                and next_assigned_round <= len(round_configs)
+            )
+            round_cells.append({
+                'score': None,
+                'assigned': is_assigned,
+            })
+
+        matrix_rows.append({
+            'application_id': app.id,
+            'name': f"{user.first_name} {user.last_name}",
+            'status': app.status,
+            'round_cells': round_cells,
+            'total_score': total_score if has_any_score else None,
+        })
+
+    matrix_rows.sort(key=lambda row: row['total_score'] if row['total_score'] is not None else -1, reverse=True)
 
     sections = []
     for round_config in round_configs:
@@ -1689,7 +2055,13 @@ def round_scoring_overview(job_id):
             'candidates': round_candidates,
         })
 
-    return render_template('round_scoring.html', job=job, sections=sections)
+    return render_template(
+        'round_scoring.html',
+        job=job,
+        sections=sections,
+        round_headers=round_configs,
+        matrix_rows=matrix_rows,
+    )
 
 
 @main.route('/job/<int:job_id>/round_scoring/<int:round_number>')
@@ -1724,6 +2096,30 @@ def accept_application(application_id):
         abort(403)
 
     application.status = 'Accepted'
+    upsert_pipeline_state(application, 'ACCEPTED')
+
+    applicant = User.query.get(application.user_id)
+    config = JobConfig.query.filter_by(job_id=job.id, confirmed=True).first()
+    company_name = config.company_display_name if config else 'Station-S'
+    reply_to = config.reply_to_email if config else None
+
+    if applicant is not None:
+        dispatch_email(
+            applicant=applicant,
+            job=job,
+            application_id=application.id,
+            event_type='FINAL_SELECTED',
+            subject=f"Congratulations! You're selected for {job.title}",
+            body=(
+                f"Hi {applicant.first_name},\n\n"
+                f"Great news — you have been selected for the role of {job.title}.\n"
+                "Our recruitment team will reach out with the next steps shortly.\n\n"
+                f"Reply to: {reply_to or 'Recruitment Team'}\n"
+                f"- {company_name} Recruitment Team"
+            ),
+            reply_to=reply_to,
+        )
+
     db.session.commit()
     flash('Application accepted.', 'success')
     return redirect(url_for('main.view_candidates', job_id=job.id))
@@ -1737,6 +2133,31 @@ def reject_application(application_id):
         abort(403)
 
     application.status = 'Rejected'
+    upsert_pipeline_state(application, 'REJECTED')
+
+    applicant = User.query.get(application.user_id)
+    config = JobConfig.query.filter_by(job_id=job.id, confirmed=True).first()
+    company_name = config.company_display_name if config else 'Station-S'
+    reply_to = config.reply_to_email if config else None
+
+    if applicant is not None:
+        dispatch_email(
+            applicant=applicant,
+            job=job,
+            application_id=application.id,
+            event_type='FINAL_REJECTED',
+            subject=f"Update on your application for {job.title}",
+            body=(
+                f"Hi {applicant.first_name},\n\n"
+                f"Thank you for your time and effort throughout the process for {job.title}.\n"
+                "After careful review, we are unable to move forward with your application at this time.\n"
+                "We appreciate your interest and encourage you to apply again in the future.\n\n"
+                f"Reply to: {reply_to or 'Recruitment Team'}\n"
+                f"- {company_name} Recruitment Team"
+            ),
+            reply_to=reply_to,
+        )
+
     db.session.commit()
     flash('Application rejected.', 'success')
     return redirect(url_for('main.view_candidates', job_id=job.id))
@@ -1745,37 +2166,53 @@ def reject_application(application_id):
 @role_required('recruiter', 'both')
 def dashboard():
     jobs = Job.query.filter_by(user_id=g.user.id).all()
+    recent_jobs = Job.query.filter_by(user_id=g.user.id).order_by(Job.date_posted.desc()).limit(5).all()
     job_ids = [job.id for job in jobs]
     funnel_counts = {
-        'applied': 0,
-        'ats_scored': 0,
-        'shortlisted': 0,
-        'in_rounds': 0,
-        'offer': 0,
-        'final_rejection': 0,
+        'jobs_count': len(jobs),
+        'applications_received': 0,
+        'job_offers': 0,
+        'active_rounds': 0,
     }
+    application_counts_by_job = {}
 
     if job_ids:
-        states = db.session.query(ApplicantPipelineState.state, func.count(ApplicantPipelineState.id)).filter(
-            ApplicantPipelineState.job_id.in_(job_ids)
-        ).group_by(ApplicantPipelineState.state).all()
+        funnel_counts['applications_received'] = Application.query.filter(
+            Application.job_id.in_(job_ids)
+        ).count()
 
-        for state, count in states:
-            state_upper = (state or '').upper()
-            if state_upper == 'APPLIED':
-                funnel_counts['applied'] += count
-            elif state_upper == 'ATS_SCORED':
-                funnel_counts['ats_scored'] += count
-            elif state_upper == 'SHORTLISTED':
-                funnel_counts['shortlisted'] += count
-            elif state_upper.startswith('ROUND_') or state_upper == 'ADVANCED':
-                funnel_counts['in_rounds'] += count
-            elif state_upper == 'OFFER':
-                funnel_counts['offer'] += count
-            elif state_upper in {'REJECTED', 'ELIMINATED', 'FINAL_REJECTION'}:
-                funnel_counts['final_rejection'] += count
+        application_counts = db.session.query(
+            Application.job_id,
+            db.func.count(Application.id)
+        ).filter(
+            Application.job_id.in_(job_ids)
+        ).group_by(
+            Application.job_id
+        ).all()
+        application_counts_by_job = {job_id: count for job_id, count in application_counts}
 
-    return render_template('dashboard.html', jobs=jobs, funnel_counts=funnel_counts)
+        funnel_counts['job_offers'] = Application.query.filter(
+            Application.job_id.in_(job_ids),
+            Application.status.in_(['Accepted', 'Offer'])
+        ).count()
+
+        funnel_counts['active_rounds'] = MCQRoundAssignment.query.filter(
+            MCQRoundAssignment.job_id.in_(job_ids),
+            MCQRoundAssignment.is_active.is_(True)
+        ).count()
+
+    recent_jobs_data = [
+        {
+            'id': job.id,
+            'title': job.title,
+            'application_count': application_counts_by_job.get(job.id, 0),
+            'status': 'Active',
+            'date_posted': job.date_posted,
+        }
+        for job in recent_jobs
+    ]
+
+    return render_template('dashboard.html', jobs=recent_jobs_data, funnel_counts=funnel_counts)
 
 @main.route('/get_job_data/<int:job_id>')
 @role_required('recruiter', 'both')
@@ -1843,3 +2280,34 @@ def get_job_data(job_id):
         'ages': ages,
         'questionsResponses': sorted(questions_responses, key=lambda x: x['score'], reverse=True)
     })
+
+
+@main.route('/api/extract-job-details', methods=['POST'])
+@role_required('recruiter', 'both')
+def extract_job_details():
+    if 'job_description_pdf' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+    
+    file = request.files['job_description_pdf']
+    
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+        
+    if file and file.filename.lower().endswith('.pdf'):
+        temp_dir = os.path.join(current_app.root_path, 'tmp')
+        os.makedirs(temp_dir, exist_ok=True)
+        temp_path = os.path.join(temp_dir, secure_filename(file.filename))
+        
+        try:
+            file.save(temp_path)
+            with open(temp_path, 'rb') as f:
+                extracted_data = parse_job_description_pdf(f)
+            return jsonify(extracted_data)
+        except Exception as e:
+            logging.exception(f"Error parsing PDF: {e}")
+            return jsonify({"error": "Failed to parse PDF"}), 500
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            
+    return jsonify({"error": "Invalid file type"}), 400

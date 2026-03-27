@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --paper: #f2f2f3;
+  --ink: #231f20;
+  --signal: #7353f6;
+  --calm: #5cc9f5;
+  --lavender: #a78bff;
+  --graphite: #2c2c2c;
+  --pale: #e7e4ff;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(115, 83, 246, 0.18), transparent 40%),
+    radial-gradient(circle at 80% 100%, rgba(92, 201, 245, 0.2), transparent 45%),
+    linear-gradient(150deg, #f7f7f8 0%, #efeff4 100%);
+  font-family: var(--font-montserrat), sans-serif;
+}
+
+h1, h2, h3, .title-font {
+  font-family: var(--font-bebas), sans-serif;
+  letter-spacing: 0.02em;
+}
+
+.panel {
+  @apply rounded-2xl border border-ink/10 bg-white/85 shadow-[0_14px_32px_rgba(35,31,32,0.08)] backdrop-blur;
+}
+
+.chip {
+  @apply rounded-full border border-signal/20 bg-pale px-3 py-1 text-xs font-semibold uppercase tracking-widest text-signal;
+}
+
+.brand-btn {
+  @apply rounded-xl bg-gradient-to-r from-signal to-calm px-5 py-3 font-semibold text-white transition hover:opacity-95;
+}
+
+.thinking-dots span {
+  @apply inline-block h-2 w-2 rounded-full bg-signal;
+  animation: dots 1.2s infinite ease-in-out;
+}
+
+.thinking-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.thinking-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes dots {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40% { transform: translateY(-6px); opacity: 1; }
+}

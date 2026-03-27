@@ -1,0 +1,109 @@
+JOB BASICS
+Job Title: Senior Backend Engineer
+Department: Engineering
+Employment Type: Full-time
+Work Mode: Hybrid
+Location: Bangalore, India
+Salary: 12-18 LPA
+Application Deadline: 2026-04-30
+
+Job Description:
+We are looking for an experienced Senior Backend Engineer to join our dynamic engineering team. The ideal candidate will be responsible for designing, developing, and maintaining the server-side of our web applications. You will work closely with our product and design teams to implement new features and ensure the scalability and reliability of our systems.
+
+Role Summary:
+As a Senior Backend Engineer, you will be a key contributor to our core products. Your primary focus will be on the development of all server-side logic, definition and maintenance of the central database, and ensuring high performance and responsiveness to requests from the front-end. You will also be responsible for integrating the front-end elements built by your coworkers into the application.
+
+==============================
+QUALIFICATIONS
+==============================
+
+Key Responsibilities:
+- Design and implement scalable and efficient RESTful APIs.
+- Develop and maintain server-side logic and database schemas.
+- Optimize application for maximum speed and scalability.
+- Implement security and data protection measures.
+- Collaborate with front-end developers to integrate user-facing elements with server-side logic.
+- Write reusable, testable, and efficient code.
+
+Required Qualifications:
+- 5+ years of professional experience in backend development.
+- Strong proficiency in Python and frameworks like FastAPI or Django.
+- Solid understanding of database systems (e.g., PostgreSQL, MySQL, MongoDB).
+- Experience with version control systems, particularly Git.
+- Bachelor's degree in Computer Science or a related field.
+
+Preferred Qualifications:
+- Experience with cloud platforms (AWS, GCP, or Azure).
+- Knowledge of containerization technologies like Docker and Kubernetes.
+- Familiarity with CI/CD pipelines.
+- Experience working in an Agile development environment.
+
+Tech Stack / Tools:
+- Python
+- FastAPI
+- PostgreSQL
+- Docker
+- AWS
+- Git
+
+==============================
+SHORTLISTING CRITERIA
+==============================
+
+Expected Applicants: 500
+Shortlist Mode: Percentage
+Shortlist Value: 20
+Minimum ATS Threshold: 70
+
+Mandatory Filters:
+- 5+ years of backend experience
+- Python proficiency
+
+Preferred Filters:
+- Experience with FastAPI
+- Cloud experience (AWS preferred)
+- Startup experience
+
+==============================
+INTERVIEW ROUNDS
+==============================
+
+Round 1:
+Round Name: Technical Screening
+Round Type: AI Interview
+Duration: 30
+Topics:
+- Data Structures & Algorithms
+- Backend development fundamentals
+- System design concepts
+Advance Count: 50
+Evaluation Rubric:
+- Problem-solving skills
+- Coding proficiency
+- Technical communication
+Schedule: 2026-04-10 09:00-17:00 IST
+
+Round 2:
+Round Name: Hiring Manager Interview
+Round Type: Human
+Duration: 45
+Topics:
+- Project experience deep-dive
+- Behavioral questions
+- Team fit and collaboration
+Advance Count: 20
+Evaluation Rubric:
+- Technical depth
+- Cultural fit
+- Communication and collaboration skills
+Schedule: 2026-04-12 10:00-16:00 IST
+
+==============================
+NOTIFICATION PREFERENCES
+==============================
+
+Email Tone: Formal
+Send Rejection Emails: Yes
+Company Name: TechNova Solutions
+Reply-To Email: careers@technovasolutions.com
+Company Logo URL: https://example.com/logo.png

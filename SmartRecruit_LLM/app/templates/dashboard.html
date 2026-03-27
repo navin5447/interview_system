@@ -1,435 +1,375 @@
 {% extends 'base.html' %}
 
-{% block title %}Station-S | Admin Dashboard{% endblock %}
+{% block title %}SmartRecruit | Dashboard{% endblock %}
 
 {% block content %}
 <style>
-    /* Page Header Styling */
+    .dashboard-wrapper {
+        padding: 20px 0;
+    }
+
     .dashboard-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-bottom: 20px;
-        background: var(--panel-color);
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        gap: 16px;
+        margin-bottom: 32px;
+        background: linear-gradient(135deg, rgba(115, 83, 246, 0.08), rgba(92, 201, 245, 0.08));
+        border: 1px solid rgba(115, 83, 246, 0.14);
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: var(--shadow-soft);
     }
 
-    .dashboard-header .icon {
-        font-size: 24px;
-        color: var(--primary-color);
-        margin-right: 10px;
-    }
-
-    .dashboard-header .page-title {
-        font-size: 28px;
-        color: var(--text-color);
-        margin: 0;
-    }
-
-    /* Graph Container Styles */
-    .graph-container {
-        background-color: var(--panel-color);
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        height: 300px;
+    .dashboard-title-wrap {
         display: flex;
-        flex-direction: column;
-        justify-content: center;
         align-items: center;
+        gap: 14px;
     }
 
-    .graph-container h5 {
-        color: var(--primary-color);
-        font-size: 18px;
-        margin-bottom: 10px;
-        text-align: center;
-        font-weight: 600;
+    .dashboard-icon {
+        font-size: 38px;
+        background: var(--gradient-primary);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
     }
 
-    .row {
-        display: flex;
-        justify-content: space-between;
-        gap: 20px;
-        margin-bottom: 20px;
-    }
-
-    .funnel-cards {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-        gap: 12px;
-        margin-bottom: 20px;
-    }
-
-    .funnel-card {
-        background: var(--panel-color);
-        border: 1px solid var(--border-color);
-        border-radius: 10px;
-        padding: 14px;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-    }
-
-    .funnel-card h4 {
+    .page-title {
         margin: 0;
-        font-size: 13px;
-        color: var(--black-light-color);
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 36px;
+        letter-spacing: 0.5px;
+        color: var(--color-graphite);
+        text-transform: uppercase;
     }
 
-    .funnel-card p {
-        margin: 6px 0 0 0;
-        font-size: 26px;
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 18px;
+        margin-bottom: 28px;
+    }
+
+    .metric-card {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border-subtle);
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: var(--shadow-soft);
+    }
+
+    .metric-label {
+        margin: 0 0 10px;
+        font-size: 14px;
         font-weight: 700;
-        color: var(--text-color);
+        color: var(--color-graphite);
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
     }
 
-    .col-md-6 {
-        flex: 1;
-        min-width: 300px;
+    .metric-value {
+        margin: 0;
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 40px;
+        line-height: 1;
+        background: var(--gradient-primary);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .charts-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+        margin-bottom: 28px;
+    }
+
+    .chart-card {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border-subtle);
+        border-radius: 16px;
+        padding: 18px;
+        box-shadow: var(--shadow-soft);
+        min-height: 260px;
+    }
+
+    .chart-title {
+        margin: 0 0 12px;
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--color-graphite);
+    }
+
+    .chart-canvas-wrap {
+        height: 220px;
+        position: relative;
+    }
+
+    .chart-canvas-wrap canvas {
+        width: 100% !important;
+        height: 100% !important;
+    }
+
+    .jobs-card {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border-subtle);
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: var(--shadow-soft);
+    }
+
+    .jobs-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+    }
+
+    .jobs-title {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--color-graphite);
+    }
+
+    .jobs-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .jobs-table th,
+    .jobs-table td {
+        padding: 14px;
+        border-bottom: 1px solid var(--color-border-subtle);
+        text-align: left;
+        font-size: 14px;
+        color: var(--color-graphite);
+    }
+
+    .jobs-table th {
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 14px;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        color: var(--color-purple);
+        background: linear-gradient(135deg, rgba(115, 83, 246, 0.08), rgba(92, 201, 245, 0.08));
+    }
+
+    .status-badge {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 6px 12px;
+        font-size: 14px;
+        font-weight: 700;
+        background: rgba(16, 185, 129, 0.14);
+        color: var(--color-emerald);
     }
 
     .form-select {
-        background-color: var(--panel-color);
-        color: var(--text-color);
-        border: 1px solid #555;
-        border-radius: 5px;
-        padding: 10px;
-        font-size: 16px;
-        width: 100%;
-    }
-
-    body.dark .form-select {
-        background-color: #444;
-        color: #ddd;
-        border: 1px solid #555;
-    }
-
-    /* Canvas Element Styling */
-    canvas {
-        width: 100% !important;
-        height: 100% !important;
-        display: block;
-    }
-
-    /* Table Styles */
-    .table-container {
-        background-color: var(--panel-color);
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        margin-top: 20px;
-        overflow-x: auto;
-    }
-
-    .table-container h5 {
-        color: var(--primary-color);
-        font-size: 20px;
-        font-weight: 700;
-        text-align: center;
-        margin-bottom: 20px;
-    }
-
-    table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-bottom: 20px;
-    }
-
-    th, td {
-        padding: 15px;
-        text-align: left;
-        border-bottom: 1px solid #ddd;
+        min-width: 220px;
         font-size: 14px;
-    }
-
-    th {
-        background-color: var(--primary-color);
-        color: white;
+        padding: 12px 14px;
+        border-radius: 10px;
+        border: 1px solid var(--color-border-subtle);
+        background: var(--color-surface);
+        color: var(--color-graphite);
         font-weight: 600;
     }
 
-    body.dark th {
-        background-color: #444;
+    @media (max-width: 900px) {
+        .charts-row {
+            grid-template-columns: 1fr;
+        }
     }
 
-    body.dark td {
-        color: #ddd;
-    }
-
-    /* Adjust table for mobile */
     @media (max-width: 768px) {
-        th, td {
-            font-size: 12px;
-            padding: 10px;
+        .dashboard-header {
+            flex-direction: column;
+            align-items: flex-start;
         }
 
-        .graph-container {
-            height: 250px;
+        .page-title {
+            font-size: 30px;
         }
 
-        .table-container h5 {
-            font-size: 18px;
+        .chart-canvas-wrap {
+            height: 200px;
         }
     }
-
 </style>
 
-
-<div class="dashboard-header">
-    <div style="display: flex;">
-        <i class="uil uil-dashboard icon"></i>
-        <h1 class="page-title">{{ user.company_name }} Admin Dashboard</h1>
-    </div>
-    <div style="max-width: 250px;">
-        <select id="jobSelect" class="form-select">
-            <option value="" selected>Select a Job...</option>
+<div
+    class="dashboard-wrapper"
+    id="dashboardData"
+    data-applications="{{ funnel_counts.applications_received or 0 }}"
+    data-offers="{{ funnel_counts.job_offers or 0 }}"
+    data-rounds="{{ funnel_counts.active_rounds or 0 }}"
+>
+    <div class="dashboard-header">
+        <div class="dashboard-title-wrap">
+            <i class="uil uil-chart-line dashboard-icon"></i>
+            <h1 class="page-title">Admin Dashboard</h1>
+        </div>
+        {% if jobs %}
+        <select class="form-select" id="job-selector" onchange="filterByJob(this.value)">
+            <option value="">Select a Job...</option>
             {% for job in jobs %}
             <option value="{{ job.id }}">{{ job.title }}</option>
             {% endfor %}
         </select>
+        {% endif %}
     </div>
-</div>
 
-<div class="funnel-cards">
-    <div class="funnel-card"><h4>Applied</h4><p>{{ funnel_counts.applied }}</p></div>
-    <div class="funnel-card"><h4>ATS Scored</h4><p>{{ funnel_counts.ats_scored }}</p></div>
-    <div class="funnel-card"><h4>Shortlisted</h4><p>{{ funnel_counts.shortlisted }}</p></div>
-    <div class="funnel-card"><h4>In Rounds</h4><p>{{ funnel_counts.in_rounds }}</p></div>
-    <div class="funnel-card"><h4>Offer</h4><p>{{ funnel_counts.offer }}</p></div>
-    <div class="funnel-card"><h4>Rejected</h4><p>{{ funnel_counts.final_rejection }}</p></div>
-</div>
-
-<div id="graphsContainer" class="row" style="display: none;">
-    <div class="col-md-6">
-        <div class="graph-container">
-            <h5>Top 3 Candidates</h5>
-            <canvas id="topCandidatesGraph"></canvas>
+    <div class="metrics-grid">
+        <div class="metric-card">
+            <p class="metric-label">No. of Jobs</p>
+            <p class="metric-value">{{ funnel_counts.jobs_count or 0 }}</p>
+        </div>
+        <div class="metric-card">
+            <p class="metric-label">Applications Received</p>
+            <p class="metric-value">{{ funnel_counts.applications_received or 0 }}</p>
+        </div>
+        <div class="metric-card">
+            <p class="metric-label">Job Offers</p>
+            <p class="metric-value">{{ funnel_counts.job_offers or 0 }}</p>
+        </div>
+        <div class="metric-card">
+            <p class="metric-label">Active Rounds</p>
+            <p class="metric-value">{{ funnel_counts.active_rounds or 0 }}</p>
         </div>
     </div>
-    <div class="col-md-6">
-        <div class="graph-container">
-            <h5>Score Comparison</h5>
-            <canvas id="scoresGraph"></canvas>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="graph-container">
-            <h5>Age Distribution</h5>
-            <canvas id="ageGraph"></canvas>
-        </div>
-    </div>
-</div>
 
-<div id="tablesContainer" style="display: none;">
-    <div class="table-container">
-        <h5>Top 10 Questions/Responses by Score</h5>
-        <table id="questionsTable">
+    <div class="charts-row">
+        <div class="chart-card">
+            <h2 class="chart-title">Recruitment Funnel</h2>
+            <div class="chart-canvas-wrap">
+                <canvas id="funnelChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-card">
+            <h2 class="chart-title">Application Status</h2>
+            <div class="chart-canvas-wrap">
+                <canvas id="statusChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="jobs-card">
+        <div class="jobs-header">
+            <h2 class="jobs-title">Recent Jobs</h2>
+            <a href="{{ url_for('main.my_jobs') }}" class="btn btn-primary">View All Jobs</a>
+        </div>
+
+        <table class="jobs-table">
             <thead>
                 <tr>
-                    <th>Question</th>
-                    <th style="width: 800px;">Response</th>
-                    <th>Score</th>
+                    <th>Job Title</th>
+                    <th>Applications</th>
+                    <th>Status</th>
+                    <th>Posted Date</th>
                 </tr>
             </thead>
             <tbody>
-                <!-- Rows will be inserted dynamically -->
+                {% if jobs %}
+                    {% for job in jobs %}
+                    <tr>
+                        <td><strong>{{ job.title }}</strong></td>
+                        <td>{{ job.application_count or 0 }}</td>
+                        <td><span class="status-badge">{{ job.status }}</span></td>
+                        <td>{{ job.date_posted.strftime('%b %d, %Y') if job.date_posted else 'Recently' }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="4" style="text-align:center; font-size:16px; padding:30px;">No jobs posted yet.</td>
+                    </tr>
+                {% endif %}
             </tbody>
         </table>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <script>
-        document.getElementById('jobSelect').addEventListener('change', function() {
-            const jobId = this.value;
-            if (jobId) {
-                fetch(`/get_job_data/${jobId}`)
-                    .then(response => response.json())
-                    .then(data => {
-                        document.getElementById('graphsContainer').style.display = 'flex';
-                        document.getElementById('tablesContainer').style.display = 'block';
-                        updateTopCandidatesGraph(data.topCandidates);
-                        updateScoresGraph(data.allCandidates);
-                        updateAgeGraph(data.ages);
-                        updateQuestionsTable(data.questionsResponses);
-                    });
-            } else {
-                document.getElementById('graphsContainer').style.display = 'none';
-                document.getElementById('tablesContainer').style.display = 'none';
+    const dashboardDataNode = document.getElementById('dashboardData');
+    const applicationsCount = Number(dashboardDataNode?.dataset.applications || 0);
+    const offersCount = Number(dashboardDataNode?.dataset.offers || 0);
+    const roundsCount = Number(dashboardDataNode?.dataset.rounds || 0);
+
+    function filterByJob(jobId) {
+        if (jobId) {
+            window.location.href = '{{ url_for("main.dashboard") }}?job_id=' + jobId;
+        } else {
+            window.location.href = '{{ url_for("main.dashboard") }}';
+        }
+    }
+
+    const funnelCtx = document.getElementById('funnelChart');
+    if (funnelCtx && typeof Chart !== 'undefined') {
+        new Chart(funnelCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Applications', 'Offers', 'Rounds'],
+                datasets: [{
+                    label: 'Recruitment Metrics',
+                    data: [applicationsCount, offersCount, roundsCount],
+                    backgroundColor: [
+                        'rgba(115, 83, 246, 0.8)',
+                        'rgba(92, 201, 245, 0.8)',
+                        'rgba(16, 185, 129, 0.8)'
+                    ],
+                    borderRadius: 8,
+                    borderSkipped: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, ticks: { precision: 0 } },
+                    x: { ticks: { maxRotation: 0 } }
+                }
             }
         });
-    
-        function updateTopCandidatesGraph(topCandidates) {
-            const ctx = document.getElementById('topCandidatesGraph').getContext('2d');
-            if (window.topCandidatesChart) window.topCandidatesChart.destroy();
-            
-            // Ensure only top 3 candidates are processed
-            const topThreeCandidates = topCandidates.slice(0, 3);
-            
-            window.topCandidatesChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: topThreeCandidates.map(candidate => candidate.name),
-                    datasets: [{
-                        label: 'Total Score',
-                        data: topThreeCandidates.map(candidate => candidate.score),
-                        backgroundColor: '#2B5A7F',
-                        borderColor: '#333',
-                        borderWidth: 1
-                    },
-                    {
-                        label: 'Similarity Score',
-                        data: topThreeCandidates.map(candidate => candidate.similarity),
-                        backgroundColor: '#5BA3D0',
-                        borderColor: '#2B5A7F',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                color: getComputedStyle(document.body).getPropertyValue('--text-color')
-                            }
-                        },
-                        x: {
-                            ticks: {
-                                color: getComputedStyle(document.body).getPropertyValue('--text-color')
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            labels: {
-                                color: getComputedStyle(document.body).getPropertyValue('--text-color')
-                            }
-                        }
-                    }
-                }
-            });
-        }
-    
-        function updateScoresGraph(allCandidates) {
-            const ctx = document.getElementById('scoresGraph').getContext('2d');
-            if (window.scoresChart) window.scoresChart.destroy();
-            
-            window.scoresChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: allCandidates.map(candidate => candidate.name),
-                    datasets: [{
-                        label: 'Total Score',
-                        data: allCandidates.map(candidate => candidate.totalScore),
-                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                        borderColor: '#1abc9c',
-                        borderWidth: 2,
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: {
-                                color: getComputedStyle(document.body).getPropertyValue('--text-color')
-                            }
-                        },
-                        x: {
-                            ticks: {
-                                color: getComputedStyle(document.body).getPropertyValue('--text-color')
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            labels: {
-                                color: getComputedStyle(document.body).getPropertyValue('--text-color')
-                            }
-                        }
-                    }
-                }
-            });
-        }
-    
-        function updateAgeGraph(ages) {
-            const ctx = document.getElementById('ageGraph').getContext('2d');
-            if (window.ageChart) window.ageChart.destroy();
-            
-            const ageGroups = {
-                "18-25": 0,
-                "26-35": 0,
-                "36-45": 0,
-                "46-55": 0,
-                "56+": 0
-            };
-        
-            ages.forEach(age => {
-                if (age >= 18 && age <= 25) ageGroups["18-25"]++;
-                else if (age >= 26 && age <= 35) ageGroups["26-35"]++;
-                else if (age >= 36 && age <= 45) ageGroups["36-45"]++;
-                else if (age >= 46 && age <= 55) ageGroups["46-55"]++;
-                else if (age >= 56) ageGroups["56+"]++;
-            });
-        
-            window.ageChart = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: Object.keys(ageGroups),
-                    datasets: [{
-                        label: 'Age Distribution',
-                        data: Object.values(ageGroups),
-                        backgroundColor: ['#2B5A7F', '#5BA3D0', '#4A90E2', '#3D7CA5', '#1E4052'],
-                        borderColor: '#333',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                color: getComputedStyle(document.body).getPropertyValue('--text-color')
-                            }
-                        }
-                    }
-                }
-            });
-        }
-    
-        function updateQuestionsTable(questionsResponses) {
-            const tableBody = document.getElementById('questionsTable').getElementsByTagName('tbody')[0];
-            tableBody.innerHTML = '';  // Clear existing rows
-    
-            questionsResponses.forEach((item, index) => {
-                if (index < 10) { // Limit to top 10 questions/responses
-                    const row = document.createElement('tr');
-    
-                    const questionCell = document.createElement('td');
-                    questionCell.textContent = item.question;
-                    row.appendChild(questionCell);
-    
-                    const responseCell = document.createElement('td');
-                    responseCell.textContent = item.response;
-                    row.appendChild(responseCell);
-    
-                    const scoreCell = document.createElement('td');
-                    scoreCell.textContent = item.score;
-                    row.appendChild(scoreCell);
-    
-                    tableBody.appendChild(row);
-                }
-            });
-        }
+    }
 
+    const statusCtx = document.getElementById('statusChart');
+    if (statusCtx && typeof Chart !== 'undefined') {
+        new Chart(statusCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Offers', 'Active Rounds', 'Other'],
+                datasets: [{
+                    data: [offersCount, roundsCount, Math.max(0, applicationsCount - offersCount)],
+                    backgroundColor: [
+                        'rgba(16, 185, 129, 0.85)',
+                        'rgba(92, 201, 245, 0.85)',
+                        'rgba(115, 83, 246, 0.85)'
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '58%',
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            boxWidth: 14,
+                            padding: 12,
+                            font: { size: 13, weight: '600' }
+                        }
+                    }
+                }
+            }
+        });
+    }
 </script>
-
 {% endblock %}

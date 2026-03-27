@@ -1,97 +1,601 @@
 {% extends 'base.html' %}
 
-{% block title %}Station-S | My Jobs{% endblock %}
+{% block title %}SmartRecruit | My Jobs{% endblock %}
 
 {% block content %}
 <style>
-    /* Light Mode */
-.page-header {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 20px;
-    background: #f9f9f9; /* Light background */
-    padding: 15px;
-    border-radius: 10px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Lighter shadow */
-}
-
-.page-header .icon {
-    font-size: 24px;
-    color: #ffaf00; /* Icon color */
-    margin-right: 10px;
-}
-
-.page-header .page-title {
-    font-size: 28px;
-    color: #333; /* Dark text color for readability */
-    margin: 0;
-}
-/* Dark Mode */
-body.dark .page-header {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 20px;
-    background: #444; /* Dark background */
-    padding: 15px;
-    border-radius: 10px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-body.dark .page-header .icon {
-    font-size: 24px;
-    color: #2B5A7F; /* Icon color */
-    margin-right: 10px;
-}
-
-body.dark .page-header .page-title {
-    font-size: 28px;
-    color: #fff; /* Light text color for readability */
-    margin: 0;
-}
-
-/* Additional Styles */
-.job-actions {
-    margin-top: 10px;
-}
-
-.job-actions a,
-.job-actions button {
-    margin-right: 10px;
-}
+    /* ===== My Jobs Page Premium Styling ===== */
+    
+    .jobs-wrapper {
+        padding: 20px 0;
+    }
+    
+    .page-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 40px;
+        background: linear-gradient(135deg, rgba(115, 83, 246, 0.08), rgba(92, 201, 245, 0.08));
+        border: 1px solid rgba(115, 83, 246, 0.1);
+        padding: 30px;
+        border-radius: 16px;
+        box-shadow: var(--shadow-soft);
+    }
+    
+    .header-left {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+    
+    .page-header .icon {
+        font-size: 40px;
+        background: var(--gradient-primary);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .header-left h1 {
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 36px;
+        font-weight: 700;
+        color: var(--color-graphite);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin: 0;
+    }
+    
+    .header-right {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+    }
+    
+    .add-job-button {
+        background: var(--gradient-primary);
+        color: white;
+        padding: 12px 24px;
+        border-radius: 10px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: var(--tran-fast);
+        box-shadow: var(--shadow-soft);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .add-job-button:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-hover);
+    }
+    
+    .search-section {
+        margin-bottom: 30px;
+    }
+    
+    .search-input {
+        width: 100%;
+        padding: 14px 20px;
+        border: 1px solid var(--color-border-subtle);
+        border-radius: 10px;
+        background: var(--color-surface);
+        color: var(--color-graphite);
+        font-size: 14px;
+        font-family: 'Montserrat', sans-serif;
+        transition: var(--tran-fast);
+    }
+    
+    .search-input:focus {
+        outline: none;
+        border-color: var(--color-purple);
+        box-shadow: 0 0 0 3px rgba(115, 83, 246, 0.1);
+    }
+    
+    .search-input::placeholder {
+        color: var(--color-graphite);
+        opacity: 0.5;
+    }
+    
+    /* ===== Jobs Grid ===== */
+    .jobs-list {
+        display: grid;
+        gap: 24px;
+    }
+    
+    .job-card {
+        background: linear-gradient(135deg, var(--color-surface) 0%, rgba(115, 83, 246, 0.02) 100%);
+        border: 1px solid var(--color-border-subtle);
+        border-radius: 16px;
+        padding: 0;
+        box-shadow: var(--shadow-soft);
+        transition: var(--tran-base);
+        position: relative;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .job-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 6px;
+        width: 100%;
+        background: var(--gradient-primary);
+        transition: height var(--tran-fast);
+    }
+    
+    .job-card:hover {
+        box-shadow: var(--shadow-hover);
+        transform: translateY(-6px);
+        border-color: var(--color-purple-soft);
+    }
+    
+    /* Job Card Header */
+    .job-title {
+        padding: 24px 24px 16px 24px;
+        border-bottom: 1px solid rgba(115, 83, 246, 0.08);
+        background: linear-gradient(135deg, rgba(115, 83, 246, 0.04) 0%, transparent 100%);
+    }
+    
+    .job-title h2 {
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 32px;
+        font-weight: 700;
+        color: var(--color-graphite);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin: 0 0 8px 0;
+    }
+    
+    .job-title .job-meta {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+    
+    .job-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 14px;
+        background: rgba(115, 83, 246, 0.1);
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--color-purple);
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+    
+    .job-badge.active {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--color-emerald);
+    }
+    
+    /* Job Card Details */
+    .job-details {
+        padding: 24px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 20px;
+        flex-grow: 1;
+    }
+    
+    .job-detail-item {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    
+    .job-detail-label {
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--color-purple);
+        font-weight: 700;
+    }
+    
+    .job-detail-value {
+        font-size: 16px;
+        color: var(--color-graphite);
+        font-weight: 600;
+        line-height: 1.5;
+    }
+    
+    .job-description-block {
+        padding: 0 24px 24px 24px;
+        border-top: 1px solid rgba(115, 83, 246, 0.08);
+    }
+    
+    .job-description-label {
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--color-purple);
+        font-weight: 700;
+        margin-bottom: 10px;
+        display: block;
+    }
+    
+    .job-description-text {
+        font-size: 16px;
+        color: var(--color-graphite);
+        line-height: 1.6;
+        opacity: 0.85;
+        font-weight: 500;
+    }
+    
+    /* ===== Job Actions ===== */
+    .job-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        padding: 20px 24px;
+        border-top: 1px solid rgba(115, 83, 246, 0.08);
+        background: rgba(115, 83, 246, 0.02);
+        border-radius: 0 0 16px 16px;
+    }
+    
+    .edit-button,
+    .view-candidates-button {
+        flex: 1;
+        min-width: 120px;
+        padding: 14px 20px;
+        background: var(--gradient-primary);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        text-decoration: none;
+        font-size: 15px;
+        font-weight: 700;
+        font-family: 'Montserrat', sans-serif;
+        cursor: pointer;
+        transition: var(--tran-fast);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        box-shadow: var(--shadow-soft);
+    }
+    
+    .edit-button:hover,
+    .view-candidates-button:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-hover);
+    }
+    
+    .view-candidates-button {
+        background: linear-gradient(135deg, var(--color-emerald) 0%, var(--color-emerald) 100%);
+    }
+    
+    .delete-button {
+        flex: 1;
+        min-width: 120px;
+        padding: 14px 20px;
+        border: 2px solid var(--color-rose);
+        background: transparent;
+        color: var(--color-rose);
+        border-radius: 10px;
+        font-size: 15px;
+        font-weight: 700;
+        font-family: 'Montserrat', sans-serif;
+        cursor: pointer;
+        transition: var(--tran-fast);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+    }
+    
+    .delete-button:hover {
+        background: rgba(244, 63, 94, 0.1);
+        transform: translateY(-2px);
+    }
+    
+    .delete-form {
+        display: flex;
+        flex: 1;
+        min-width: 120px;
+    }
+    
+    .delete-form .delete-button {
+        width: 100%;
+    }
+    
+    /* ===== Empty State ===== */
+    .empty-state {
+        text-align: center;
+        padding: 80px 40px;
+        background: linear-gradient(135deg, rgba(115, 83, 246, 0.04) 0%, rgba(92, 201, 245, 0.04) 100%);
+        border: 2px dashed var(--color-border-subtle);
+        border-radius: 16px;
+        box-shadow: var(--shadow-soft);
+    }
+    
+    .empty-state-icon {
+        font-size: 64px;
+        background: var(--gradient-primary);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 20px;
+        animation: float 3s ease-in-out infinite;
+    }
+    
+    @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+    }
+    
+    .empty-state h3 {
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 36px;
+        color: var(--color-graphite);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 12px;
+    }
+    
+    .empty-state p {
+        color: var(--color-graphite);
+        opacity: 0.7;
+        margin-bottom: 30px;
+        font-size: 18px;
+        font-weight: 500;
+    }
+    
+    .empty-state .add-job-button {
+        background: var(--gradient-primary);
+        color: white;
+        padding: 14px 32px;
+        border-radius: 10px;
+        text-decoration: none;
+        font-weight: 700;
+        font-family: 'Montserrat', sans-serif;
+        transition: var(--tran-fast);
+        box-shadow: var(--shadow-soft);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-size: 14px;
+    }
+    
+    .empty-state .add-job-button:hover {
+        transform: translateY(-3px);
+        box-shadow: var(--shadow-hover);
+    }
+    
+    /* ===== Dark Mode ===== */
+    body.dark .page-header {
+        background: linear-gradient(135deg, rgba(115, 83, 246, 0.15), rgba(92, 201, 245, 0.15));
+        border-color: rgba(115, 83, 246, 0.2);
+    }
+    
+    body.dark .job-title {
+        border-bottom-color: var(--color-border-subtle);
+    }
+    
+    body.dark .job-actions {
+        border-top-color: var(--color-border-subtle);
+    }
+    
+    /* ===== Responsive ===== */
+    @media (max-width: 768px) {
+        .page-header {
+            flex-direction: column;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .header-right {
+            width: 100%;
+            margin-top: 16px;
+        }
+        
+        .add-job-button {
+            width: 100%;
+            justify-content: center;
+        }
+        
+        .job-details {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        
+        .job-actions {
+            flex-direction: column;
+        }
+        
+        .edit-button,
+        .view-candidates-button,
+        .delete-button {
+            width: 100%;
+        }
+        
+        .delete-form {
+            width: 100%;
+        }
+        
+        .delete-form .delete-button {
+            width: 100%;
+        }
+        
+        .page-header .icon {
+            font-size: 28px;
+        }
+        
+        .header-left h1 {
+            font-size: 22px;
+        }
+        
+        .job-title h2 {
+            font-size: 20px;
+        }
+        
+        .empty-state {
+            padding: 60px 20px;
+        }
+        
+        .empty-state-icon {
+            font-size: 48px;
+        }
+        
+        .empty-state h3 {
+            font-size: 22px;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        .job-title h2 {
+            font-size: 18px;
+        }
+        
+        .job-details {
+            grid-template-columns: 1fr;
+        }
+        
+        .job-title {
+            padding: 16px 16px 12px 16px;
+        }
+        
+        .job-details {
+            padding: 16px;
+        }
+        
+        .job-description-block {
+            padding: 0 16px 16px 16px;
+        }
+        
+        .job-actions {
+            padding: 16px;
+        }
+        
+        .jobs-wrapper {
+            padding: 8px 0;
+        }
+        
+        .page-header {
+            padding: 16px;
+        }
+        
+        .header-left h1 {
+            font-size: 18px;
+        }
+        
+        .empty-state {
+            padding: 40px 16px;
+        }
+        
+        .empty-state h3 {
+            font-size: 20px;
+        }
+        
+        .empty-state-icon {
+            font-size: 40px;
+        }
+    }
 </style>
 
 <div class="jobs-wrapper">
+    <!-- Page Header -->
     <div class="page-header">
-        <i class="uil uil-briefcase icon"></i>
-        <h1 class="page-title">My Jobs</h1>
+        <div class="header-left">
+            <i class="uil uil-briefcase icon"></i>
+            <h1>My Posted Jobs</h1>
+        </div>
+        <div class="header-right">
+            <a href="{{ url_for('main.create_job') }}" class="add-job-button">
+                <i class="uil uil-plus"></i>
+                Add New Job
+            </a>
+        </div>
     </div>
-    <div class="header-bar">
-        <input type="text" placeholder="Search jobs..." class="search-input" id="search-input">
-        <a href="{{ url_for('main.create_job') }}" class="add-job-button">Add New Job</a>
+    
+    <!-- Search Bar -->
+    <div class="search-section">
+        <input type="text" placeholder="🔍 Search jobs by title or location..." class="search-input" id="search-input">
     </div>
+    
+    <!-- Jobs List -->
     <div class="jobs-list" id="jobs-list">
-        {% for job in jobs %}
-        <div class="job-card" data-title="{{ job.title | lower }}">
-            <div class="job-title">
-                <h2>{{ job.title }}</h2>
-            </div>
-            <div class="job-details">
-                <p><strong>Location:</strong> {{ job.location }}</p>
-                <p><strong>Description:</strong> {{ job.description | truncate(100) }}</p>
-                <p><strong>Salary:</strong> {{ job.salary }}</p>
-                <p><strong>Date Posted:</strong> {{ job.date_posted.strftime('%Y-%m-%d') }}</p>
+        {% if jobs %}
+            {% for job in jobs %}
+            <div class="job-card" data-title="{{ job.title | lower }}">
+                <div class="job-title">
+                    <h2>{{ job.title }}</h2>
+                    <div class="job-meta">
+                        <span class="job-badge active">🟢 Active</span>
+                        <span class="job-badge">📍 {{ job.location }}</span>
+                    </div>
+                </div>
+                
+                <div class="job-details">
+                    <div class="job-detail-item">
+                        <span class="job-detail-label">📅 Posted Date</span>
+                        <span class="job-detail-value">{{ job.date_posted.strftime('%b %d, %Y') if job.date_posted else 'Recently' }}</span>
+                    </div>
+                    <div class="job-detail-item">
+                        <span class="job-detail-label">💼 Job Type</span>
+                        <span class="job-detail-value">{{ job.job_type or 'Full-time' }}</span>
+                    </div>
+                    <div class="job-detail-item">
+                        <span class="job-detail-label">💰 Salary Range</span>
+                        <span class="job-detail-value">{{ job.salary or 'Competitive' }}</span>
+                    </div>
+                    <div class="job-detail-item">
+                        <span class="job-detail-label">🏙️ Location</span>
+                        <span class="job-detail-value">{{ job.location }}</span>
+                    </div>
+                </div>
+                
+                <div class="job-description-block">
+                    <span class="job-description-label">📝 Job Description</span>
+                    <p class="job-description-text">{{ job.description | truncate(200) }}</p>
+                </div>
+                
                 <div class="job-actions">
-                    <a href="{{ url_for('main.edit_job', job_id=job.id) }}" class="edit-button">Edit</a>
-                    <form action="{{ url_for('main.delete_job', job_id=job.id) }}" method="POST" class="delete-form" style="display:inline;">
-                        <button type="submit" class="delete-button">Delete</button>
+                    <a href="{{ url_for('main.edit_job', job_id=job.id) }}" class="edit-button" title="Edit this job posting">
+                        <i class="uil uil-edit"></i>
+                        Edit
+                    </a>
+                    <a href="{{ url_for('main.view_candidates', job_id=job.id) }}" class="view-candidates-button" title="View all candidates for this job">
+                        <i class="uil uil-users-alt"></i>
+                        Candidates
+                    </a>
+                    <form action="{{ url_for('main.delete_job', job_id=job.id) }}" method="POST" class="delete-form" onsubmit="return confirm('Are you sure you want to delete this job? This action cannot be undone.');">
+                        <button type="submit" class="delete-button" title="Delete this job posting">
+                            <i class="uil uil-trash-alt"></i>
+                            Delete
+                        </button>
                     </form>
-                    <a href="{{ url_for('main.view_candidates', job_id=job.id) }}" class="view-candidates-button">View Candidates</a>
                 </div>
             </div>
+            {% endfor %}
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">
+                <i class="uil uil-briefcase"></i>
+            </div>
+            <h3>No Jobs Posted Yet</h3>
+            <p>Start recruiting by posting your first job opening</p>
+            <a href="{{ url_for('main.create_job') }}" class="add-job-button">
+                <i class="uil uil-plus"></i>
+                Post Your First Job
+            </a>
         </div>
-        {% endfor %}
+        {% endif %}
     </div>
 </div>
 
@@ -99,19 +603,48 @@ body.dark .page-header .page-title {
     document.addEventListener('DOMContentLoaded', function() {
         const searchInput = document.getElementById('search-input');
         const jobsList = document.getElementById('jobs-list');
-        const jobCards = jobsList.getElementsByClassName('job-card');
-    
+        const jobCards = document.querySelectorAll('.job-card');
+        
         searchInput.addEventListener('input', function() {
-            const query = searchInput.value.toLowerCase();
-    
-            Array.from(jobCards).forEach(card => {
-                const title = card.getAttribute('data-title');
-    
-                if (title.includes(query)) {
-                    card.style.display = 'block';
+            const searchTerm = this.value.toLowerCase().trim();
+            let visibleCount = 0;
+            
+            jobCards.forEach(function(card) {
+                const jobTitle = card.getAttribute('data-title');
+                const cardText = card.textContent.toLowerCase();
+                
+                if (cardText.includes(searchTerm)) {
+                    card.style.display = '';
+                    visibleCount++;
                 } else {
                     card.style.display = 'none';
                 }
+            });
+            
+            // Show empty state if no results
+            if (visibleCount === 0 && searchTerm !== '') {
+                let emptyMsg = document.getElementById('no-results-msg');
+                if (!emptyMsg) {
+                    emptyMsg = document.createElement('div');
+                    emptyMsg.id = 'no-results-msg';
+                    emptyMsg.style.cssText = 'text-align: center; padding: 40px; color: #999; font-style: italic;';
+                    emptyMsg.innerHTML = '<p style="font-size: 16px;">No jobs found matching your search</p>';
+                    jobsList.appendChild(emptyMsg);
+                }
+            } else {
+                const emptyMsg = document.getElementById('no-results-msg');
+                if (emptyMsg) emptyMsg.remove();
+            }
+        });
+        
+        // Smooth hover effects
+        jobCards.forEach(card => {
+            card.addEventListener('mouseenter', function() {
+                this.style.transition = 'transform 0.3s ease';
+                this.style.transform = 'translateY(-4px)';
+            });
+            card.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0)';
             });
         });
     });

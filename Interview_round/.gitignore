@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Backend storage artifacts
+backend/storage/sessions.db
+backend/storage/audio/
+backend/storage/reports/*.png
+backend/storage/reports/*.pdf
+
+# Node
+frontend/node_modules/
+frontend/.next/
+
+# Env
+backend/.env
+frontend/.env.local

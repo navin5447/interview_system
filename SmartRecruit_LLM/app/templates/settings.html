@@ -1,14 +1,212 @@
 {% extends 'base.html' %}
 
-{% block title %}Station-S | Settings{% endblock %}
+{% block title %}SmartRecruit | Settings{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <i class="uil uil-settings icon"></i>
-    <h1 class="page-title">Account Setting</h1>
-</div>
+<style>
+    /* ===== Settings Premium Styling ===== */
+    
+    .settings-wrapper {
+        padding: 20px 0;
+        max-width: 900px;
+        margin: 0 auto;
+    }
+    
+    .page-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 40px;
+        padding: 30px;
+        background: linear-gradient(135deg, rgba(115, 83, 246, 0.08), rgba(92, 201, 245, 0.08));
+        border: 1px solid rgba(115, 83, 246, 0.1);
+        border-radius: 16px;
+        box-shadow: var(--shadow-soft);
+    }
+    
+    .page-header .icon {
+        font-size: 40px;
+        background: var(--gradient-primary);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .page-header .page-title {
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 36px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--color-graphite);
+        margin: 0;
+    }
+    
+    .settings-container {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border-subtle);
+        border-radius: 16px;
+        padding: 40px;
+        box-shadow: var(--shadow-soft);
+    }
+    
+    .settings-section {
+        margin-bottom: 40px;
+        padding-bottom: 40px;
+        border-bottom: 2px solid var(--color-border-subtle);
+    }
+    
+    .settings-section:last-child {
+        margin-bottom: 0;
+        border-bottom: none;
+    }
+    
+    .settings-section h2 {
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 24px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--color-purple);
+        margin-bottom: 24px;
+    }
+    
+    .profile-photo-container {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        margin-bottom: 30px;
+        padding: 20px;
+        background: rgba(115, 83, 246, 0.05);
+        border-radius: 12px;
+        border: 2px dashed var(--color-border-subtle);
+    }
+    
+    .profile-photo {
+        width: 100px;
+        height: 100px;
+        border-radius: 12px;
+        object-fit: cover;
+        border: 3px solid var(--color-purple);
+    }
+    
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 16px;
+    }
+    
+    .form-group label {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        color: var(--color-purple);
+    }
+    
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        padding: 12px 16px;
+        border: 1px solid var(--color-border-subtle);
+        border-radius: 10px;
+        background: var(--color-surface);
+        color: var(--color-graphite);
+        font-family: 'Montserrat', sans-serif;
+        font-size: 14px;
+        transition: var(--tran-fast);
+    }
+    
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+        outline: none;
+        border-color: var(--color-purple);
+        box-shadow: 0 0 0 3px rgba(115, 83, 246, 0.1);
+    }
+    
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .btn-save {
+        background: var(--gradient-primary);
+        color: white;
+        padding: 14px 32px;
+        border: none;
+        border-radius: 10px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 14px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        cursor: pointer;
+        transition: var(--tran-fast);
+        box-shadow: var(--shadow-soft);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 20px;
+    }
+    
+    .btn-save:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-hover);
+    }
+    
+    .btn-dangerous {
+        background: transparent;
+        color: var(--color-rose);
+        border: 2px solid var(--color-rose);
+        padding: 12px 24px;
+        border-radius: 10px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        cursor: pointer;
+        transition: var(--tran-fast);
+        margin-top: 20px;
+    }
+    
+    .btn-dangerous:hover {
+        background: rgba(244, 63, 94, 0.1);
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+        .page-header {
+            flex-direction: column;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .page-header .page-title {
+            font-size: 24px;
+        }
+        
+        .settings-container {
+            padding: 20px;
+        }
+        
+        .form-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
 
-<div class="settings-container">
+<div class="settings-wrapper">
+    <div class="page-header">
+        <i class="uil uil-settings icon"></i>
+        <h1 class="page-title">Account Settings</h1>
+    </div>
+
+    <div class="settings-container">
     <!-- General Settings Section -->
     <div class="settings-section general-info-bar">
         <h2>General Info</h2>
@@ -75,151 +273,4 @@
     </div>
     {% endif %}
 </div>
-
-<style>
-    /* Page Header Styling */
-.page-header {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 20px;
-    background: #f9f9f9; /* Light background */
-    padding: 15px;
-    border-radius: 10px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Lighter shadow */
-}
-
-.page-header .icon {
-    font-size: 24px;
-    color: #2B5A7F; /* Icon color */
-    margin-right: 10px;
-}
-
-.page-header .page-title {
-    font-size: 28px;
-    color: #333; /* Dark text color for readability */
-    margin: 0;
-}
-
-/* Dark Mode */
-body.dark .page-header {
-    background: #444; /* Dark background */
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
-body.dark .page-header .icon {
-    color: #2B5A7F; /* Icon color */
-}
-
-body.dark .page-header .page-title {
-    color: #fff; /* Light text color for readability */
-}
-
-/* Settings Container */
-.settings-container {
-    display: flex;
-    gap: 20px;
-}
-
-.settings-section {
-    flex: 1;
-    padding: 20px;
-    border-radius: 8px;
-    background: #fff; /* Light background for sections */
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Lighter shadow */
-}
-
-.general-info-bar {
-    flex: 40%;
-}
-
-.cv-bar {
-    flex: 60%;
-}
-
-/* Profile Photo Styling */
-.profile-photo-container {
-    display: flex;
-    justify-content: center;
-    margin-bottom: 20px;
-}
-
-.profile-photo {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%; /* Circle */
-    object-fit: cover;
-}
-
-/* Form Styling */
-.settings-section form {
-    display: flex;
-    flex-direction: column;
-}
-
-.settings-section .form-group {
-    margin-bottom: 15px;
-}
-
-.settings-section .form-group label {
-    display: block;
-    font-weight: 500;
-    margin-bottom: 5px;
-    color: #555;
-}
-
-.settings-section .form-group input,
-.settings-section .form-group textarea {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 14px;
-    color: #333;
-}
-
-.settings-section .form-group textarea {
-    resize: vertical;
-    min-height: 100px;
-}
-
-.settings-section button {
-    background-color: #2B5A7F; /* Updated color */
-    color: #fff;
-    border: none;
-    padding: 10px 15px;
-    border-radius: 4px;
-    font-size: 16px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-}
-
-.settings-section button:hover {
-    background-color: #e69a00; /* Slightly darker shade for hover */
-}
-
-/* Dark Mode */
-body.dark .settings-section {
-    background: #333; /* Dark background */
-}
-
-body.dark .settings-section .form-group label {
-    color: #ddd;
-}
-
-body.dark .settings-section .form-group input,
-body.dark .settings-section .form-group textarea {
-    background-color: #444;
-    border: 1px solid #555;
-    color: #f5f5f5;
-}
-
-body.dark .settings-section button {
-    background-color: #2B5A7F; /* Updated color */
-}
-
-body.dark .settings-section button:hover {
-    background-color: #1E4052; /* Slightly darker shade for hover */
-}
-</style>
 {% endblock %}

@@ -1,23 +1,23 @@
-/* AI Interview Simulator - Modern Dark Theme */
+/* Station-S MCQ Round - App Aligned Theme */
 
 :root {
-    --bg-primary: #0f0f1a;
-    --bg-secondary: #1a1a2e;
-    --bg-tertiary: #252540;
-    --text-primary: #ffffff;
-    --text-secondary: #a0a0b0;
-    --text-muted: #6b6b7b;
-    --accent-primary: #6366f1;
-    --accent-secondary: #8b5cf6;
-    --accent-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    --bg-primary: #f5f5f8;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #f7f7fb;
+    --text-primary: #231f20;
+    --text-secondary: #5a5563;
+    --text-muted: #7a7486;
+    --accent-primary: #7353f6;
+    --accent-secondary: #5cc9f5;
+    --accent-gradient: linear-gradient(135deg, #7353f6 0%, #5cc9f5 100%);
     --success: #10b981;
     --error: #ef4444;
     --warning: #f59e0b;
     --easy: #10b981;
     --medium: #f59e0b;
     --hard: #ef4444;
-    --border-color: #2d2d4a;
-    --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.4);
+    --border-color: rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 16px 40px rgba(16, 24, 40, 0.08);
     --radius-sm: 8px;
     --radius-md: 12px;
     --radius-lg: 16px;
@@ -31,8 +31,8 @@
 }
 
 body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    background: var(--bg-primary);
+    font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: linear-gradient(135deg, #f5f5f8 0%, #ffffff 100%);
     color: var(--text-primary);
     min-height: 100vh;
     line-height: 1.6;
@@ -44,6 +44,56 @@ body {
     padding: 2rem;
 }
 
+.security-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1200;
+}
+
+.security-modal.hidden {
+    display: none;
+}
+
+.security-modal-card {
+    width: min(680px, 92vw);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-lg);
+}
+
+.security-modal-card h3 {
+    margin-bottom: 0.8rem;
+}
+
+.security-modal-card ul {
+    margin: 0.8rem 0 0 1.2rem;
+    color: var(--text-secondary);
+}
+
+.security-error {
+    color: var(--error);
+    margin-top: 0.8rem;
+    min-height: 20px;
+}
+
+.security-actions {
+    margin-top: 1rem;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.proxy-status {
+    margin-top: 8px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
 /* Header */
 .header {
     text-align: center;
@@ -51,8 +101,10 @@ body {
 }
 
 .header h1 {
-    font-size: 2.5rem;
+    font-size: 2.3rem;
     font-weight: 700;
+    font-family: 'Bebas Neue', sans-serif;
+    letter-spacing: 0.6px;
     background: var(--accent-gradient);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -148,6 +200,7 @@ body {
     border-radius: var(--radius-lg);
     padding: 1.5rem;
     border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-lg);
 }
 
 .settings-section h2 {
@@ -226,6 +279,7 @@ body {
     font-size: 0.85rem;
     font-weight: 600;
 }
+    box-shadow: 0 4px 12px rgba(16, 24, 40, 0.04);
 
 .diff-label.easy { color: var(--easy); }
 .diff-label.medium { color: var(--medium); }
@@ -373,6 +427,7 @@ body {
     border-radius: var(--radius-md);
     font-size: 1.25rem;
     font-weight: 600;
+    border: 1px solid var(--border-color);
 }
 
 .timer.warning {
@@ -400,6 +455,8 @@ body {
     border-radius: var(--radius-lg);
     padding: 2rem;
     margin-bottom: 1.5rem;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-lg);
 }
 
 .question-meta {
@@ -450,6 +507,7 @@ body {
     cursor: pointer;
     transition: all 0.2s;
     text-align: left;
+    box-shadow: 0 4px 10px rgba(16, 24, 40, 0.04);
 }
 
 .option-btn:hover:not(:disabled) {
@@ -589,6 +647,8 @@ body {
     border-radius: var(--radius-lg);
     padding: 1.5rem;
     margin-bottom: 2rem;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-lg);
 }
 
 .results-breakdown h3 {
@@ -640,6 +700,7 @@ body {
     border-radius: var(--radius-md);
     padding: 1.25rem;
     border-left: 4px solid var(--border-color);
+    box-shadow: 0 4px 12px rgba(16, 24, 40, 0.05);
 }
 
 .review-item.correct {
@@ -711,7 +772,7 @@ body {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(15, 15, 26, 0.95);
+    background: rgba(245, 245, 248, 0.92);
     display: flex;
     align-items: center;
     justify-content: center;

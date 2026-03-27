@@ -42,3 +42,22 @@ dist/
 Thumbs.db
 .vscode/
 .idea/
+
+# Copilot and IDE cache
+.claude/
+
+# Test/debug scripts
+**/apply_*.py
+**/debug_*.py
+**/find_*.py
+**/fix_*.py
+**/verify_*.py
+**/advance_*.py
+**/test_*.py
+
+# Backup and generated docs
+**/*-backup.*
+**/*-premium.*
+**/UI_REDESIGN_SUMMARY.md
+**/SKILL.md
+**/apply.html

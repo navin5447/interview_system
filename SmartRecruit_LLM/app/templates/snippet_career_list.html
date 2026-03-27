@@ -1,154 +1,219 @@
 {% extends 'base.html' %}
 
-{% block title %}Station-S | Browse Jobs{% endblock %}
+{% block title %}SmartRecruit | Browse Jobs{% endblock %}
 
 {% block content %}
 <style>
-    /* Light Mode */
-    .page-header {
+    .jobs-wrapper {
+        padding: 20px 0;
+    }
+
+    .jobs-header {
         display: flex;
         align-items: center;
-        justify-content: center;
-        margin-bottom: 20px;
-        background: #f9f9f9;
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    }
-
-    .page-header .icon {
-        font-size: 24px;
-        color: #2B5A7F;
-        margin-right: 10px;
-    }
-
-    .page-header .page-title {
-        font-size: 28px;
-        color: #333;
-        margin: 0;
-    }
-
-    /* Dark Mode */
-    body.dark .page-header {
-        background: #444;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    }
-
-    body.dark .page-header .page-title {
-        color: #fff;
-    }
-
-    .header-bar {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-bottom: 20px;
         justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 24px;
+        padding: 24px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, rgba(115, 83, 246, 0.08), rgba(92, 201, 245, 0.08));
+        border: 1px solid rgba(115, 83, 246, 0.14);
+        box-shadow: var(--shadow-soft);
+        flex-wrap: wrap;
     }
 
-    .header-bar input[type="text"], .header-bar select {
-        flex: 1;
-        padding: 10px;
-        border-radius: 5px;
-        border: 1px solid #ccc;
+    .jobs-header h1 {
+        margin: 0;
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 34px;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        color: var(--color-graphite);
+    }
+
+    .filter-bar {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .filter-bar input,
+    .filter-bar select {
+        width: 100%;
+        border: 1px solid var(--color-border-subtle);
+        border-radius: 10px;
+        padding: 12px 14px;
+        font-size: 14px;
+        color: var(--color-graphite);
+        background: var(--color-surface);
+        font-family: 'Montserrat', sans-serif;
+    }
+
+    .jobs-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 16px;
+    }
+
+    .section-title {
+        margin: 20px 0 12px;
+        font-size: 24px;
+        font-weight: 700;
+        color: var(--color-graphite);
+    }
+
+    .job-status-chip {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: 13px;
+        font-weight: 700;
+        margin-top: 10px;
+        background: rgba(115, 83, 246, 0.1);
+        color: var(--color-purple);
     }
 
     .job-card {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border-subtle);
+        border-radius: 16px;
+        padding: 18px;
+        box-shadow: var(--shadow-soft);
+        transition: var(--tran-fast);
+    }
+
+    .job-card:hover {
+        transform: translateY(-3px);
+        box-shadow: var(--shadow-hover);
+    }
+
+    .job-top {
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        background: #fff;
-        padding: 20px;
-        margin-bottom: 20px;
-        border-radius: 10px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        width: 100%;
+        gap: 12px;
+        margin-bottom: 12px;
     }
 
-    body.dark .job-card {
-        background: #333;
-    }
-
-    .job-image {
-        background-color: #2B5A7F;
-        color: #fff;
-        font-size: 24px;
-        font-weight: bold;
+    .job-logo {
+        width: 46px;
+        height: 46px;
+        border-radius: 999px;
         display: flex;
         align-items: center;
         justify-content: center;
-        border-radius: 50%;
-        width: 50px;
-        height: 50px;
-        margin-right: 20px;
+        background: var(--gradient-primary);
+        color: #fff;
+        font-size: 18px;
+        font-weight: 700;
     }
 
-    .job-title h2 {
+    .job-title {
         margin: 0;
-        font-size: 24px;
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--color-graphite);
     }
 
-    .job-details {
+    .job-meta {
+        margin: 0;
+        font-size: 14px;
+        color: var(--color-graphite);
+        opacity: 0.9;
         display: flex;
         align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
     }
 
-    .job-details p {
-        margin: 0 10px;
-        font-size: 16px;
-        display: flex;
+    .job-action {
+        margin-top: 12px;
+        display: inline-flex;
         align-items: center;
-    }
-
-    .job-details .icon {
-        margin-right: 5px;
-    }
-
-    .job-actions .edit-button {
-        padding: 5px 10px;
-        background-color: #007bff;
-        color: white;
-        border: none;
-        border-radius: 5px;
+        gap: 6px;
         text-decoration: none;
+        border-radius: 10px;
+        background: var(--gradient-primary);
+        color: #fff;
+        padding: 10px 14px;
+        font-size: 14px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.35px;
     }
 
-    .job-details .location-icon, .job-details .salary-icon {
-        margin-right: 5px;
+    .empty-state {
+        grid-column: 1 / -1;
+        background: var(--color-surface);
+        border: 1px dashed var(--color-border-subtle);
+        border-radius: 16px;
+        text-align: center;
+        padding: 36px;
+        font-size: 16px;
+        color: var(--color-graphite);
+    }
+
+    @media (max-width: 900px) {
+        .filter-bar {
+            grid-template-columns: 1fr;
+        }
     }
 </style>
 
 <div class="jobs-wrapper">
-    <div class="page-header">
-        <i class="uil uil-briefcase icon"></i>
-        <h1 class="page-title">Available Jobs</h1>
+    <div class="jobs-header">
+        <h1><i class="uil uil-briefcase-alt" style="margin-right:8px;"></i>Available Jobs</h1>
     </div>
-    <div class="header-bar">
-        <input type="text" placeholder="Search by job name..." class="search-input" id="search-by-name">
-        <input type="text" placeholder="Search by salary..." class="search-input" id="search-by-salary">
-        <select id="search-by-location" class="search-input">
-            <option value="" disabled selected>Select a location</option>
-            <!-- Options will be populated by JavaScript -->
+
+    <div class="filter-bar">
+        <input type="text" placeholder="Search by job name..." id="search-by-name">
+        <input type="text" placeholder="Search by salary..." id="search-by-salary">
+        <select id="search-by-location">
+            <option value="" selected>All locations</option>
         </select>
     </div>
-    <div class="jobs-list" id="jobs-list">
-        {% for job in jobs %}
-        <div class="job-card" data-title="{{ job.title | lower }}" data-salary="{{ job.salary }}" data-location="{{ job.location | lower }}">
-            <div class="job-image">
-                {{ job.title[0] | upper }}
+
+    <h2 class="section-title">New Jobs</h2>
+    <div class="jobs-list" id="available-jobs-list">
+        {% if available_jobs %}
+            {% for job in available_jobs %}
+            <div class="job-card" data-title="{{ job.title | lower }}" data-salary="{{ job.salary }}" data-location="{{ job.location | lower }}">
+                <div class="job-top">
+                    <div class="job-logo">{{ job.title[0] | upper }}</div>
+                    <h2 class="job-title">{{ job.title }}</h2>
+                </div>
+                <p class="job-meta"><i class="uil uil-location-point"></i>{{ job.location }}</p>
+                <p class="job-meta"><i class="uil uil-money-bill"></i>{{ job.salary }}</p>
+                <a class="job-action" href="{{ url_for('main.job_detail', job_id=job.id) }}"><i class="uil uil-eye"></i>View Details</a>
             </div>
-            <div class="job-title">
-                <h2>{{ job.title }}</h2>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">No new jobs available right now.</div>
+        {% endif %}
+    </div>
+
+    <h2 class="section-title">Applied Jobs</h2>
+    <div class="jobs-list" id="applied-jobs-list">
+        {% if applied_jobs %}
+            {% for item in applied_jobs %}
+            {% set job = item.job %}
+            {% set application = item.application %}
+            <div class="job-card">
+                <div class="job-top">
+                    <div class="job-logo">{{ job.title[0] | upper }}</div>
+                    <h2 class="job-title">{{ job.title }}</h2>
+                </div>
+                <p class="job-meta"><i class="uil uil-location-point"></i>{{ job.location }}</p>
+                <p class="job-meta"><i class="uil uil-money-bill"></i>{{ job.salary }}</p>
+                <p class="job-meta"><i class="uil uil-calendar-alt"></i>Applied: {{ application.timestamp.strftime('%b %d, %Y') if application.timestamp else '-' }}</p>
+                <span class="job-status-chip">Status: {{ application.dynamic_status }}</span>
+                <a class="job-action" href="{{ url_for('main.job_detail', job_id=job.id) }}"><i class="uil uil-eye"></i>View Details</a>
             </div>
-            <div class="job-details">
-                <p><i class="uil uil-location-point location-icon"></i>{{ job.location }}</p>
-                <p><i class="uil uil-money-bill salary-icon"></i>{{ job.salary }}</p>
-            </div>
-            <div class="job-actions">
-                <a href="{{ url_for('main.job_detail', job_id=job.id) }}" class="edit-button">Show More</a>
-            </div>
-        </div>
-        {% endfor %}
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">You have not applied to any jobs yet.</div>
+        {% endif %}
     </div>
 </div>
 
@@ -157,10 +222,9 @@
         const searchByName = document.getElementById('search-by-name');
         const searchBySalary = document.getElementById('search-by-salary');
         const searchByLocation = document.getElementById('search-by-location');
-        const jobsList = document.getElementById('jobs-list');
-        const jobCards = jobsList.getElementsByClassName('job-card');
+        const jobsList = document.getElementById('available-jobs-list');
+        const jobCards = jobsList ? jobsList.getElementsByClassName('job-card') : [];
 
-        // Populate location dropdown with countries
         fetch('https://restcountries.com/v3.1/all')
             .then(response => response.json())
             .then(data => {
@@ -172,7 +236,7 @@
                     searchByLocation.appendChild(option);
                 });
             })
-            .catch(error => console.error('Error fetching country data:', error));
+            .catch(() => {});
 
         function filterJobs() {
             const nameQuery = searchByName.value.toLowerCase();
@@ -180,19 +244,15 @@
             const locationQuery = searchByLocation.value.toLowerCase();
 
             Array.from(jobCards).forEach(card => {
-                const title = card.getAttribute('data-title');
-                const salary = card.getAttribute('data-salary');
-                const location = card.getAttribute('data-location');
+                const title = card.getAttribute('data-title') || '';
+                const salary = card.getAttribute('data-salary') || '';
+                const location = card.getAttribute('data-location') || '';
 
                 const matchesName = title.includes(nameQuery);
                 const matchesSalary = salary.includes(salaryQuery);
-                const matchesLocation = location.includes(locationQuery) || locationQuery === '';
+                const matchesLocation = !locationQuery || location.includes(locationQuery);
 
-                if (matchesName && matchesSalary && matchesLocation) {
-                    card.style.display = 'flex';
-                } else {
-                    card.style.display = 'none';
-                }
+                card.style.display = (matchesName && matchesSalary && matchesLocation) ? 'block' : 'none';
             });
         }
 

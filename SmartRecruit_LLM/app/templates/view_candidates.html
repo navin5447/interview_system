@@ -1,123 +1,294 @@
 {% extends 'base.html' %}
 
-{% block title %}Station-S | View Candidates{% endblock %}
+{% block title %}SmartRecruit | View Candidates{% endblock %}
 
 {% block content %}
 <style>
-    /* Light Mode */
+    /* ===== View Candidates Premium Styling ===== */
+    
+    .candidates-wrapper {
+        padding: 20px 0;
+    }
+    
+    /* Page Header */
     .page-header {
         display: flex;
         align-items: center;
-        justify-content: center;
-        margin-bottom: 20px;
-        background: #f9f9f9; /* Light background */
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Lighter shadow */
+        justify-content: space-between;
+        margin-bottom: 40px;
+        background: linear-gradient(135deg, rgba(115, 83, 246, 0.08), rgba(92, 201, 245, 0.08));
+        border: 1px solid rgba(115, 83, 246, 0.1);
+        padding: 30px;
+        border-radius: 16px;
+        box-shadow: var(--shadow-soft);
     }
-
+    
     .page-header .icon {
-        font-size: 24px;
-        color: #ffaf00; /* Icon color */
-        margin-right: 10px;
+        font-size: 40px;
+        background: var(--gradient-primary);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-right: 16px;
     }
-
+    
     .page-header .page-title {
-        font-size: 28px;
-        color: #333; /* Dark text color for readability */
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 36px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--color-graphite);
         margin: 0;
     }
-
-    /* Dark Mode */
-    body.dark .page-header {
-        background: #444; /* Dark background */
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    
+    .header-actions {
+        display: flex;
+        gap: 12px;
+        align-items: center;
     }
-
-    body.dark .page-header .icon {
-        color: #ffaf00; /* Icon color */
+    
+    .filter-section {
+        margin-bottom: 30px;
+        padding: 20px;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border-subtle);
+        border-radius: 16px;
+        box-shadow: var(--shadow-soft);
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
     }
-
-    body.dark .page-header .page-title {
-        color: #fff; /* Light text color for readability */
+    
+    .filter-section select,
+    .filter-section input {
+        padding: 10px 16px;
+        border: 1px solid var(--color-border-subtle);
+        border-radius: 8px;
+        background: var(--color-surface);
+        color: var(--color-graphite);
+        font-family: 'Montserrat', sans-serif;
+        font-size: 13px;
+        transition: var(--tran-fast);
     }
-
+    
+    .filter-section select:focus,
+    .filter-section input:focus {
+        outline: none;
+        border-color: var(--color-purple);
+        box-shadow: 0 0 0 3px rgba(115, 83, 246, 0.1);
+    }
+    
     /* Table Styles */
-    .candidates-wrapper {
-        text-align: center; /* Center-align table and button */
-    }
-
     .candidates-table {
-        width: 80%; /* Center table and adjust width */
-        margin: 0 auto; /* Center table horizontally */
+        width: 100%;
         border-collapse: collapse;
-        margin-bottom: 20px;
+        background: var(--color-surface);
+        border-radius: 16px;
+        border: 1px solid var(--color-border-subtle);
+        box-shadow: var(--shadow-soft);
+        overflow: hidden;
     }
-
-    .candidates-table th,
-    .candidates-table td {
-        padding: 12px;
-        border: 1px solid #ddd;
+    
+    .candidates-table th {
+        background: linear-gradient(135deg, rgba(115, 83, 246, 0.1), rgba(92, 201, 245, 0.1));
+        border-bottom: 2px solid var(--color-border-subtle);
+        padding: 16px;
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--color-purple);
+        font-weight: 700;
         text-align: left;
     }
-
-    .candidates-table th {
-        background-color: #ffaf00; /* Header background color */
-        color: #fff; /* Text color */
+    
+    .candidates-table td {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--color-border-subtle);
+        color: var(--color-graphite);
+        font-size: 14px;
     }
-
-    .candidates-table tr:nth-child(even) {
-        background-color: #f9f9f9;
-    }
-
+    
     .candidates-table tr:hover {
-        background-color: #f1f1f1;
+        background: rgba(115, 83, 246, 0.03);
     }
-
-    .view-interview-button {
-        display: inline-block; /* Ensure button is inline-block for centering */
-        color: #fff; /* Button text color */
-        background-color: #ffaf00; /* Button background color */
+    
+    .candidates-table tr:last-child td {
+        border-bottom: none;
+    }
+    
+    /* Status Badges */
+    .status-badge {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+    
+    .status-badge.shortlisted {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--color-emerald);
+    }
+    
+    .status-badge.rejected {
+        background: rgba(244, 63, 94, 0.1);
+        color: var(--color-rose);
+    }
+    
+    .status-badge.pending {
+        background: rgba(245, 158, 11, 0.1);
+        color: var(--color-amber);
+    }
+    
+    .status-badge.interviewed {
+        background: rgba(115, 83, 246, 0.1);
+        color: var(--color-purple);
+    }
+    
+    /* Action Buttons */
+    .view-interview-button,
+    .action-button {
+        background: var(--gradient-primary);
+        color: white;
+        padding: 10px 16px;
+        border: none;
+        border-radius: 8px;
         text-decoration: none;
-        padding: 5px 10px;
-        border: 1px solid #ffaf00;
-        border-radius: 4px;
-        text-align: center; /* Center text within button */
+        font-size: 12px;
+        font-weight: 700;
+        font-family: 'Montserrat', sans-serif;
+        cursor: pointer;
+        transition: var(--tran-fast);
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
     }
-
-    .view-interview-button:hover {
-        background-color: #e59400; /* Darker orange for hover effect */
-        border-color: #e59400;
+    
+    .view-interview-button:hover,
+    .action-button:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-hover);
     }
-
-    /* Dark Mode Table Styles */
-    body.dark .candidates-table th {
-        background-color: #666; /* Darker background */
-        color: #fff; /* Light text color */
+    
+    .shortlist-button {
+        background: linear-gradient(135deg, var(--color-emerald), var(--color-emerald));
     }
-
-    body.dark .candidates-table td {
-        border: 1px solid #555; /* Darker border */
-        color: #ccc; /* Light text color */
+    
+    .reject-button {
+        background: transparent;
+        color: var(--color-rose);
+        border: 1px solid var(--color-rose);
     }
-
-    body.dark .candidates-table tr:nth-child(even) {
-        background-color: #2e2e2e; /* Darker row background */
+    
+    .reject-button:hover {
+        background: rgba(244, 63, 94, 0.1);
     }
-
-    body.dark .candidates-table tr:hover {
-        background-color: #3a3a3a; /* Hover effect for dark mode */
+    
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 80px 40px;
+        background: linear-gradient(135deg, rgba(115, 83, 246, 0.04) 0%, rgba(92, 201, 245, 0.04) 100%);
+        border: 2px dashed var(--color-border-subtle);
+        border-radius: 16px;
+        box-shadow: var(--shadow-soft);
     }
-
-    body.dark .view-interview-button {
-        color: #fff; /* Button text color */
-        background-color: #ffaf00; /* Button background color */
-        border: 1px solid #ffaf00; /* Button border */
+    
+    .empty-state-icon {
+        font-size: 64px;
+        background: var(--gradient-primary);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 20px;
     }
-
-    body.dark .view-interview-button:hover {
-        background-color: #e59400; /* Darker orange for hover effect */
-        border-color: #e59400;
+    
+    .empty-state h3 {
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 28px;
+        color: var(--color-graphite);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 12px;
+    }
+    
+    .empty-state p {
+        color: var(--color-graphite);
+        opacity: 0.7;
+        margin-bottom: 30px;
+        font-size: 16px;
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+        .page-header {
+            flex-direction: column;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .page-header .page-title {
+            font-size: 24px;
+        }
+        
+        .filter-section {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        
+        .filter-section select,
+        .filter-section input {
+            width: 100%;
+        }
+        
+        .candidates-table {
+            font-size: 12px;
+        }
+        
+        .candidates-table th,
+        .candidates-table td {
+            padding: 12px 8px;
+        }
+    }
+    
+    @media (max-width: 480px) {
+        .candidates-table {
+            display: block;
+            overflow-x: auto;
+        }
+        
+        .candidates-table thead {
+            display: none;
+        }
+        
+        .candidates-table tr {
+            display: block;
+            margin-bottom: 15px;
+            border: 1px solid var(--color-border-subtle);
+            border-radius: 8px;
+            background: var(--color-surface);
+        }
+        
+        .candidates-table td {
+            display: block;
+            text-align: right;
+            padding: 8px 16px;
+            border-bottom: 1px solid var(--color-border-subtle);
+        }
+        
+        .candidates-table td:before {
+            content: attr(data-label);
+            float: left;
+            font-weight: 700;
+            color: var(--color-purple);
+        }
     }
 </style>
 

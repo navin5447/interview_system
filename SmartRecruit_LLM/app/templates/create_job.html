@@ -1,201 +1,522 @@
 {% extends 'base.html' %}
 
-{% block title %}Station-S | Create Job{% endblock %}
+{% block title %}SmartRecruit | Create Job{% endblock %}
 
 {% block content %}
-<div class="create-job">
-    <div class="title">
-        <i class="uil uil-briefcase"></i>
-        <span class="text">Create Job</span>
+<style>
+    /* ===== Create Job Premium Form Styling ===== */
+    
+    .create-job-wrapper {
+        padding: 20px 0;
+        max-width: 900px;
+        margin: 0 auto;
+    }
+    
+    .form-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 40px;
+        padding: 30px;
+        background: linear-gradient(135deg, rgba(115, 83, 246, 0.08), rgba(92, 201, 245, 0.08));
+        border: 1px solid rgba(115, 83, 246, 0.1);
+        border-radius: 16px;
+        box-shadow: var(--shadow-soft);
+    }
+    
+    .form-header .icon {
+        font-size: 40px;
+        background: var(--gradient-primary);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .form-header h1 {
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 36px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--color-graphite);
+        margin: 0;
+    }
+    
+    .create-job form {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border-subtle);
+        border-radius: 16px;
+        padding: 40px;
+        box-shadow: var(--shadow-soft);
+    }
+    
+    .form-section {
+        margin-bottom: 40px;
+    }
+    
+    .form-section:last-child {
+        margin-bottom: 0;
+    }
+    
+    .form-section h3 {
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 20px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--color-purple);
+        margin-bottom: 20px;
+        padding-bottom: 12px;
+        border-bottom: 2px solid var(--color-border-subtle);
+    }
+    
+    .form-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .form-group label {
+        font-family: 'Montserrat', sans-serif;
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        color: var(--color-purple);
+    }
+    
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+        padding: 12px 16px;
+        border: 1px solid var(--color-border-subtle);
+        border-radius: 10px;
+        background: var(--color-surface);
+        color: var(--color-graphite);
+        font-family: 'Montserrat', sans-serif;
+        font-size: 14px;
+        transition: var(--tran-fast);
+    }
+    
+    .form-group input:focus,
+    .form-group textarea:focus,
+    .form-group select:focus {
+        outline: none;
+        border-color: var(--color-purple);
+        box-shadow: 0 0 0 3px rgba(115, 83, 246, 0.1);
+    }
+    
+    .form-group textarea {
+        resize: vertical;
+        min-height: 100px;
+        font-family: 'Montserrat', sans-serif;
+    }
+    
+    .form-actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 40px;
+        padding-top: 20px;
+        border-top: 1px solid var(--color-border-subtle);
+    }
+    
+    .btn-submit {
+        background: var(--gradient-primary);
+        color: white;
+        padding: 14px 32px;
+        border: none;
+        border-radius: 10px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 14px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        cursor: pointer;
+        transition: var(--tran-fast);
+        box-shadow: var(--shadow-soft);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .btn-submit:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-hover);
+    }
+    
+    .btn-cancel {
+        background: transparent;
+        color: var(--color-graphite);
+        padding: 14px 32px;
+        border: 1px solid var(--color-border-subtle);
+        border-radius: 10px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 14px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        cursor: pointer;
+        transition: var(--tran-fast);
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .btn-cancel:hover {
+        background: rgba(115, 83, 246, 0.05);
+        border-color: var(--color-purple);
+    }
+    
+    .btn-secondary {
+        background: transparent;
+        color: var(--color-purple);
+        padding: 10px 20px;
+        border: 1px solid var(--color-purple);
+        border-radius: 8px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        cursor: pointer;
+        transition: var(--tran-fast);
+        margin-top: 10px;
+    }
+    
+    .btn-secondary:hover {
+        background: rgba(115, 83, 246, 0.1);
+    }
+    
+    #rounds-preview {
+        list-style: none;
+        padding: 0;
+        margin: 20px 0;
+    }
+    
+    #rounds-preview li {
+        background: rgba(115, 83, 246, 0.05);
+        border-left: 4px solid var(--color-purple);
+        padding: 16px;
+        margin-bottom: 12px;
+        border-radius: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+        .form-header {
+            padding: 20px;
+        }
+        
+        .form-header h1 {
+            font-size: 24px;
+        }
+        
+        .create-job form {
+            padding: 20px;
+        }
+        
+        .form-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .form-actions {
+            flex-direction: column;
+        }
+        
+        .btn-submit,
+        .btn-cancel {
+            width: 100%;
+            justify-content: center;
+        }
+    }
+</style>
+
+<div class="create-job-wrapper">
+    <div class="form-header">
+        <i class="uil uil-briefcase icon"></i>
+        <h1>Create New Job</h1>
     </div>
-    <form action="{{ url_for('main.create_job') }}" method="post">
-        <h3>Job Basics</h3>
-        <div class="form-group">
-            <label for="job-title">Job Title</label>
-            <input type="text" id="job-title" name="title" placeholder="Enter job title" required>
-        </div>
-        <div class="form-group">
-            <label for="department">Department</label>
-            <input type="text" id="department" name="department" placeholder="Engineering, Product, HR..." required>
-        </div>
-        <div class="form-group">
-            <label for="employment-type">Employment Type</label>
-            <select id="employment-type" name="employment_type" required>
-                <option value="">Select employment type</option>
-                <option value="Full-time">Full-time</option>
-                <option value="Part-time">Part-time</option>
-                <option value="Internship">Internship</option>
-                <option value="Contract">Contract</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="work-mode">Work Mode</label>
-            <select id="work-mode" name="work_mode" required>
-                <option value="">Select work mode</option>
-                <option value="Remote">Remote</option>
-                <option value="Hybrid">Hybrid</option>
-                <option value="On-site">On-site</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="job-description">Job Description</label>
-            <textarea id="job-description" name="description" placeholder="Enter job description" required></textarea>
-        </div>
-        <div class="form-group">
-            <label for="role-summary">Role Summary</label>
-            <textarea id="role-summary" name="role_summary" placeholder="Day-to-day role summary" required></textarea>
-        </div>
-        <div class="form-group">
-            <label for="job-location">Location</label>
-            <input
-                type="text"
-                id="job-location"
-                name="location"
-                list="job-location-list"
-                placeholder="Enter or select location"
-                required
-            >
-            <datalist id="job-location-list"></datalist>
-        </div>
-        <div class="form-group">
-            <label for="application-deadline">Application Deadline</label>
-            <input type="datetime-local" id="application-deadline" name="application_deadline" required>
-        </div>
-        <div class="form-group">
-            <label for="job-salary">Salary</label>
-            <input type="number" id="job-salary" name="salary" placeholder="Enter job salary" required step="0.01">
-        </div>
+    
+    <div class="create-job">
+        <form action="{{ url_for('main.create_job') }}" method="post">
+            <!-- Upload Job Description Section -->
+            <div class="form-section">
+                <h3>📄 Upload Job Description (Optional)</h3>
+                <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr; align-items: end; gap: 20px;">
+                    <div class="form-group">
+                        <label for="job-description-pdf">Upload Job Description File (PDF)</label>
+                        <input type="file" id="job-description-pdf" name="job_description_pdf" accept=".pdf" style="padding: 10px; border: 1px solid var(--color-border-subtle); border-radius: 10px;">
+                    </div>
+                    <button type="button" class="btn-secondary" id="extract-details-btn" style="margin-bottom: 0; height: 45px;">Extract Details</button>
+                    <a href="{{ url_for('static', filename='assets/Job_Description_Template.pdf') }}" download class="btn-secondary" style="margin-bottom: 0; height: 45px; text-align: center; line-height: 25px;">Download Template</a>
+                </div>
+            </div>
 
-        <h3>Qualifications</h3>
-        <div class="form-group">
-            <label for="key-responsibilities">Key Responsibilities (one per line)</label>
-            <textarea id="key-responsibilities" name="key_responsibilities" required></textarea>
-        </div>
-        <div class="form-group">
-            <label for="required-qualifications">Required Qualifications (one per line)</label>
-            <textarea id="required-qualifications" name="required_qualifications" required></textarea>
-        </div>
-        <div class="form-group">
-            <label for="preferred-qualifications">Preferred Qualifications (one per line)</label>
-            <textarea id="preferred-qualifications" name="preferred_qualifications"></textarea>
-        </div>
-        <div class="form-group">
-            <label for="tech-stack">Tech Stack / Tools (one per line)</label>
-            <textarea id="tech-stack" name="tech_stack"></textarea>
-        </div>
-
-        <h3>Shortlisting Criteria</h3>
-        <div class="form-group">
-            <label for="expected-applicants">Expected Applicants</label>
-            <input type="number" id="expected-applicants" name="expected_applicants" min="1" required>
-        </div>
-        <div class="form-group">
-            <label for="shortlist-mode">Shortlist Mode</label>
-            <select id="shortlist-mode" name="shortlist_mode" required>
-                <option value="count">Exact number</option>
-                <option value="percentage">Percentage</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="shortlist-value">Shortlist Value</label>
-            <input type="number" id="shortlist-value" name="shortlist_value" min="1" required>
-        </div>
-        <div class="form-group">
-            <label for="min-ats-threshold">Minimum ATS Threshold (0-100)</label>
-            <input type="number" id="min-ats-threshold" name="min_ats_threshold" min="0" max="100" value="70" required>
-        </div>
-        <div class="form-group">
-            <label for="mandatory-filters">Mandatory Filters (one per line)</label>
-            <textarea id="mandatory-filters" name="mandatory_filters" required></textarea>
-        </div>
-        <div class="form-group">
-            <label for="preferred-filters">Preferred Filters (one per line)</label>
-            <textarea id="preferred-filters" name="preferred_filters"></textarea>
-        </div>
-
-        <h3>Interview Rounds</h3>
-        <p>Add each round configuration and click Add Round.</p>
-        <div class="form-group">
-            <label for="round-number">Round Number</label>
-            <input type="number" id="round-number" min="1" value="1">
-        </div>
-        <div class="form-group">
-            <label for="round-name">Round Name</label>
-            <input type="text" id="round-name" placeholder="Technical Screening">
-        </div>
-        <div class="form-group">
-            <label for="round-type">Round Type</label>
-            <select id="round-type">
-                <option value="AI Interview">AI Interview</option>
-                <option value="Live Interview">Live Interview</option>
-                <option value="Assignment">Assignment / Take-home Task</option>
-                <option value="Group Discussion">Group Discussion</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="round-duration">Duration (minutes)</label>
-            <input type="number" id="round-duration" min="10" value="30">
-        </div>
-        <div class="form-group">
-            <label for="round-focus">Topics / Focus Areas (one per line)</label>
-            <textarea id="round-focus"></textarea>
-        </div>
-        <div class="form-group">
-            <label for="round-advance">Advance Count After This Round</label>
-            <input type="number" id="round-advance" min="0">
-        </div>
-        <div class="form-group">
-            <label for="round-rubric">Evaluation Rubric (one per line)</label>
-            <textarea id="round-rubric"></textarea>
-        </div>
-        <div class="form-group">
-            <label for="round-window">Schedule Window</label>
-            <input type="text" id="round-window" placeholder="2026-04-10 09:00-17:00 IST or to be scheduled dynamically">
-        </div>
-        <button type="button" id="add-round-btn">Add Round</button>
-        <ul id="rounds-preview"></ul>
-        <input type="hidden" id="rounds-payload" name="rounds_payload" required>
-
-        <h3>Notification Preferences</h3>
-        <div class="form-group">
-            <label for="notification-tone">Email Tone</label>
-            <select id="notification-tone" name="notification_tone" required>
-                <option value="formal">Formal</option>
-                <option value="semi-formal">Semi-formal</option>
-                <option value="friendly">Friendly</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="company-display-name">Company Name for Emails</label>
-            <input type="text" id="company-display-name" name="company_display_name" required>
-        </div>
-        <div class="form-group">
-            <label for="company-logo-url">Company Logo URL</label>
-            <input type="url" id="company-logo-url" name="company_logo_url">
-        </div>
-        <div class="form-group">
-            <label for="reply-to-email">Reply-To Email</label>
-            <input type="email" id="reply-to-email" name="reply_to_email" required>
-        </div>
-        <div class="form-group">
-            <label for="send-rejection-emails">Send Rejection Emails?</label>
-            <select id="send-rejection-emails" name="send_rejection_emails" required>
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label for="rejection-timing">Rejection Email Timing</label>
-            <input type="text" id="rejection-timing" name="rejection_timing" value="after_shortlisting" required>
-        </div>
-
-        <h3>Confirmation</h3>
-        <div class="form-group">
-            <label for="confirm-publish">Type CONFIRM to publish this job</label>
-            <input type="text" id="confirm-publish" name="confirm_publish" required>
-        </div>
-        <button type="submit">Create Job</button>
-    </form>
+            <!-- Job Basics Section -->
+            <div class="form-section">
+                <h3>📋 Job Basics</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="job-title">Job Title</label>
+                        <input type="text" id="job-title" name="title" placeholder="e.g., Senior Backend Engineer" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="department">Department</label>
+                        <input type="text" id="department" name="department" placeholder="Engineering, Product, HR..." required>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="employment-type">Employment Type</label>
+                        <select id="employment-type" name="employment_type" required>
+                            <option value="">Select employment type</option>
+                            <option value="Full-time">Full-time</option>
+                            <option value="Part-time">Part-time</option>
+                            <option value="Internship">Internship</option>
+                            <option value="Contract">Contract</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="work-mode">Work Mode</label>
+                        <select id="work-mode" name="work_mode" required>
+                            <option value="">Select work mode</option>
+                            <option value="Remote">Remote</option>
+                            <option value="Hybrid">Hybrid</option>
+                            <option value="On-site">On-site</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="job-location">Location</label>
+                        <input type="text" id="job-location" name="location" list="job-location-list" placeholder="City, Country" required>
+                        <datalist id="job-location-list"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label for="job-salary">Salary</label>
+                        <input type="number" id="job-salary" name="salary" placeholder="Annual salary" required step="0.01">
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="job-description">Job Description</label>
+                        <textarea id="job-description" name="description" placeholder="Full job description" required></textarea>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="role-summary">Role Summary</label>
+                        <textarea id="role-summary" name="role_summary" placeholder="Day-to-day responsibilities" required></textarea>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="application-deadline">Application Deadline</label>
+                        <input type="datetime-local" id="application-deadline" name="application_deadline" required>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Qualifications Section -->
+            <div class="form-section">
+                <h3>🎯 Qualifications</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="key-responsibilities">Key Responsibilities (one per line)</label>
+                        <textarea id="key-responsibilities" name="key_responsibilities" required></textarea>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="required-qualifications">Required Qualifications (one per line)</label>
+                        <textarea id="required-qualifications" name="required_qualifications" required></textarea>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="preferred-qualifications">Preferred Qualifications (one per line)</label>
+                        <textarea id="preferred-qualifications" name="preferred_qualifications"></textarea>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="tech-stack">Tech Stack / Tools (one per line)</label>
+                        <textarea id="tech-stack" name="tech_stack"></textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Shortlisting Criteria -->
+            <div class="form-section">
+                <h3>✅ Shortlisting Criteria</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="expected-applicants">Expected Applicants</label>
+                        <input type="number" id="expected-applicants" name="expected_applicants" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="shortlist-mode">Shortlist Mode</label>
+                        <select id="shortlist-mode" name="shortlist_mode" required>
+                            <option value="count">Exact number</option>
+                            <option value="percentage">Percentage</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="shortlist-value">Shortlist Value</label>
+                        <input type="number" id="shortlist-value" name="shortlist_value" min="1" required>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="min-ats-threshold">Minimum ATS Threshold (0-100)</label>
+                        <input type="number" id="min-ats-threshold" name="min_ats_threshold" min="0" max="100" value="70" required>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="mandatory-filters">Mandatory Filters (one per line)</label>
+                        <textarea id="mandatory-filters" name="mandatory_filters" required></textarea>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="preferred-filters">Preferred Filters (one per line)</label>
+                        <textarea id="preferred-filters" name="preferred_filters"></textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Interview Rounds -->
+            <div class="form-section">
+                <h3>💬 Interview Rounds</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="round-number">Round Number</label>
+                        <input type="number" id="round-number" min="1" value="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="round-name">Round Name</label>
+                        <input type="text" id="round-name" placeholder="Technical Screening">
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="round-type">Round Type</label>
+                        <select id="round-type">
+                            <option value="AI Interview">AI Interview</option>
+                            <option value="Live Interview">Live Interview</option>
+                            <option value="Assignment">Assignment / Take-home Task</option>
+                            <option value="Group Discussion">Group Discussion</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="round-duration">Duration (minutes)</label>
+                        <input type="number" id="round-duration" min="10" value="30">
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="round-focus">Topics / Focus Areas (one per line)</label>
+                        <textarea id="round-focus"></textarea>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="round-advance">Advance Count After This Round</label>
+                        <input type="number" id="round-advance" min="0">
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="round-rubric">Evaluation Rubric (one per line)</label>
+                        <textarea id="round-rubric"></textarea>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="round-window">Schedule Window</label>
+                        <input type="text" id="round-window" placeholder="2026-04-10 09:00-17:00 IST">
+                    </div>
+                </div>
+                <button type="button" class="btn-secondary" id="add-round-btn">+ Add Round</button>
+                <ul id="rounds-preview"></ul>
+                <input type="hidden" id="rounds-payload" name="rounds_payload" required>
+            </div>
+            
+            <!-- Notification Preferences -->
+            <div class="form-section">
+                <h3>📧 Notification Preferences</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="notification-tone">Email Tone</label>
+                        <select id="notification-tone" name="notification_tone" required>
+                            <option value="formal">Formal</option>
+                            <option value="semi-formal">Semi-formal</option>
+                            <option value="friendly">Friendly</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="send-rejection-emails">Send Rejection Emails?</label>
+                        <select id="send-rejection-emails" name="send_rejection_emails" required>
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="company-display-name">Company Name for Emails</label>
+                        <input type="text" id="company-display-name" name="company_display_name" required>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="reply-to-email">Reply-To Email</label>
+                        <input type="email" id="reply-to-email" name="reply_to_email" required>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="company-logo-url">Company Logo URL (optional)</label>
+                        <input type="url" id="company-logo-url" name="company_logo_url">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Confirmation -->
+            <div class="form-section">
+                <h3>🔐 Confirmation</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="confirm-publish">Type CONFIRM to publish this job</label>
+                        <input type="text" id="confirm-publish" name="confirm_publish" placeholder="Type CONFIRM here" required>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Form Actions -->
+            <div class="form-actions">
+                <button type="submit" class="btn-submit">
+                    <i class="uil uil-check-circle"></i>
+                    Create Job
+                </button>
+                <a href="{{ url_for('main.my_jobs') }}" class="btn-cancel">
+                    <i class="uil uil-times"></i>
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
 </div>
 
 <script>
@@ -289,6 +610,118 @@
                 alert('Add at least one interview round before publishing.');
             }
         });
+
+        const extractBtn = document.getElementById('extract-details-btn');
+        const fileInput = document.getElementById('job-description-pdf');
+
+        extractBtn.addEventListener('click', function() {
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('Please select a PDF file first.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('job_description_pdf', file);
+
+            fetch('/api/extract-job-details', {
+                method: 'POST',
+                body: formData
+            })
+            .then(async (response) => {
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    const message = data.error || `Request failed (${response.status})`;
+                    throw new Error(message);
+                }
+                return data;
+            })
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+                autofillForm(data);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to extract details: ' + (error?.message || 'Unknown error'));
+            });
+        });
+
+        function autofillForm(data) {
+            const salaryRaw = typeof data.salary === 'string' ? data.salary : '';
+            const salaryMatch = salaryRaw.match(/[0-9]+(?:\.[0-9]+)?/);
+
+            let deadlineValue = '';
+            if (data.application_deadline) {
+                const parsedDate = new Date(data.application_deadline);
+                if (!Number.isNaN(parsedDate.getTime())) {
+                    deadlineValue = parsedDate.toISOString().slice(0, 16);
+                }
+            }
+
+            // Job Basics
+            document.getElementById('job-title').value = data.job_title || '';
+            document.getElementById('department').value = data.department || '';
+            document.getElementById('employment-type').value = data.employment_type || '';
+            document.getElementById('work-mode').value = data.work_mode || '';
+            document.getElementById('job-location').value = data.location || '';
+            document.getElementById('job-salary').value = salaryMatch ? salaryMatch[0] : '';
+            document.getElementById('job-description').value = data.job_description || '';
+            document.getElementById('role-summary').value = data.role_summary || '';
+            document.getElementById('application-deadline').value = deadlineValue;
+
+            // Qualifications
+            document.getElementById('key-responsibilities').value = (data.key_responsibilities || []).join('\\n');
+            document.getElementById('required-qualifications').value = (data.required_qualifications || []).join('\\n');
+            document.getElementById('preferred-qualifications').value = (data.preferred_qualifications || []).join('\\n');
+            document.getElementById('tech-stack').value = (data.tech_stack || []).join('\\n');
+
+            // Shortlisting Criteria
+            document.getElementById('expected-applicants').value = data.expected_applicants || '';
+            document.getElementById('shortlist-mode').value = (data.shortlist_mode || '').toLowerCase() === 'percentage' ? 'percentage' : 'count';
+            document.getElementById('shortlist-value').value = data.shortlist_value || '';
+            document.getElementById('min-ats-threshold').value = data.min_ats_threshold || '70';
+            document.getElementById('mandatory-filters').value = (data.mandatory_filters || []).join('\\n');
+            document.getElementById('preferred-filters').value = (data.preferred_filters || []).join('\\n');
+
+            // Interview Rounds
+            const roundsPreview = document.getElementById('rounds-preview');
+            const roundsPayload = document.getElementById('rounds-payload');
+            let rounds = [];
+            if (data.interview_rounds) {
+                rounds = data.interview_rounds.map(round => ({
+                    round_number: round.round_number,
+                    round_name: round.round_name,
+                    round_type: round.round_type,
+                    duration_minutes: round.duration,
+                    focus_areas: round.topics,
+                    advance_count: round.advance_count,
+                    evaluation_rubric: round.evaluation_rubric,
+                    schedule_window: round.schedule_window
+                }));
+                roundsPayload.value = JSON.stringify(rounds);
+                renderRoundsPreview(rounds);
+            }
+
+            // Notification Preferences
+            document.getElementById('notification-tone').value = (data.email_tone || 'formal').toLowerCase();
+            document.getElementById('send-rejection-emails').value = (data.send_rejection_emails || 'yes').toLowerCase();
+            document.getElementById('company-display-name').value = data.company_name || '';
+            document.getElementById('reply-to-email').value = data.reply_to_email || '';
+            document.getElementById('company-logo-url').value = data.company_logo_url || '';
+        }
+
+        function renderRoundsPreview(rounds) {
+            const roundsPreview = document.getElementById('rounds-preview');
+            roundsPreview.innerHTML = '';
+            rounds.forEach(round => {
+                const li = document.createElement('li');
+                li.textContent = `Round ${round.round_number}: ${round.round_name} (${round.round_type}, ${round.duration_minutes} min)`;
+                roundsPreview.appendChild(li);
+            });
+        }
     });
 </script>
 {% endblock %}

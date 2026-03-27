@@ -6,6 +6,13 @@
 // Configuration
 const API_URL = 'http://localhost:8000';
 
+const ROUND_PROXY_PENALTIES = {
+    mcq: { tab_hidden: 12, window_blur: 8, fullscreen_exit: 15, phone_detected: 25, multiple_faces: 20, no_face: 10 },
+    aptitude: { tab_hidden: 8, window_blur: 6, fullscreen_exit: 10, phone_detected: 20, multiple_faces: 15, no_face: 8 },
+    coding: { tab_hidden: 10, window_blur: 6, fullscreen_exit: 12, phone_detected: 22, multiple_faces: 18, no_face: 8 },
+    technical: { tab_hidden: 12, window_blur: 8, fullscreen_exit: 15, phone_detected: 25, multiple_faces: 20, no_face: 10 }
+};
+
 // Application State
 const state = {
     sessionId: null,
@@ -19,6 +26,21 @@ const state = {
     submitUrl: null,
     applicationId: null,
     roundNumber: null,
+    proxyRoundType: 'mcq',
+    proxy: {
+        score: 100,
+        events: [],
+        monitoring: false,
+        mediaStream: null,
+        monitorIntervalId: null,
+        visionIntervalId: null,
+        visionInFlight: false,
+        objectDetector: null,
+        faceDetector: null,
+        modelsReady: false,
+        noFaceStreak: 0,
+        lastViolationAt: {}
+    },
     config: {
         numQuestions: 15,
         timer: 60,
@@ -68,7 +90,14 @@ const elements = {
     hardScore: document.getElementById('hard-score'),
     questionReviewContainer: document.getElementById('question-review-container'),
     retryBtn: document.getElementById('retry-btn'),
-    newInterviewBtn: document.getElementById('new-interview-btn')
+    newInterviewBtn: document.getElementById('new-interview-btn'),
+
+    // Security modal
+    securityModal: document.getElementById('security-modal'),
+    securityApproveBtn: document.getElementById('security-approve-btn'),
+    securityError: document.getElementById('security-error'),
+    proxyVideo: document.getElementById('proxy-video'),
+    proxyCanvas: document.getElementById('proxy-canvas')
 };
 
 // Initialize application
@@ -91,6 +120,7 @@ function applyPrefillFromQuery() {
     state.submitUrl = params.get('submit_url');
     state.applicationId = params.get('application_id');
     state.roundNumber = params.get('round_number');
+    state.proxyRoundType = (params.get('proxy_round') || 'mcq').toLowerCase();
 
     const jobRequirements = params.get('job_requirements');
     if (jobRequirements) {
@@ -163,6 +193,10 @@ function setupEventListeners() {
     // Results buttons
     elements.retryBtn.addEventListener('click', retryInterview);
     elements.newInterviewBtn.addEventListener('click', resetToSetup);
+
+    if (elements.securityApproveBtn) {
+        elements.securityApproveBtn.addEventListener('click', approveSecurityAndContinue);
+    }
 }
 
 function updateDifficultySliders() {
@@ -208,8 +242,300 @@ function validateInputs() {
     return isValid;
 }
 
+async function requestFullscreenSafe() {
+    try {
+        const docEl = document.documentElement;
+        const currentFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+        if (!currentFullscreen) {
+            const requestFn =
+                docEl.requestFullscreen ||
+                docEl.webkitRequestFullscreen ||
+                docEl.msRequestFullscreen;
+            if (!requestFn) return false;
+            await requestFn.call(docEl);
+        }
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+async function requestMediaPermission() {
+    try {
+        if (state.proxy.mediaStream) {
+            attachStreamToProxyVideo(state.proxy.mediaStream);
+            return true;
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        state.proxy.mediaStream = stream;
+        attachStreamToProxyVideo(stream);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+function attachStreamToProxyVideo(stream) {
+    if (!elements.proxyVideo) return;
+    elements.proxyVideo.srcObject = stream;
+    elements.proxyVideo.play().catch(() => {});
+}
+
+function isFullscreenActive() {
+    return Boolean(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+}
+
+function stopProxyMediaStream() {
+    if (state.proxy.mediaStream) {
+        state.proxy.mediaStream.getTracks().forEach(track => track.stop());
+        state.proxy.mediaStream = null;
+    }
+
+    if (elements.proxyVideo) {
+        elements.proxyVideo.srcObject = null;
+    }
+}
+
+function registerProxyViolationWithCooldown(type, penalty, cooldownMs = 6000) {
+    const now = Date.now();
+    const lastAt = state.proxy.lastViolationAt[type] || 0;
+    if (now - lastAt < cooldownMs) {
+        return;
+    }
+
+    state.proxy.lastViolationAt[type] = now;
+    registerProxyViolation(type, penalty);
+}
+
+function registerProxyViolation(type, penalty) {
+    const roundType = (state.proxyRoundType || 'mcq').toLowerCase();
+    const mapping = ROUND_PROXY_PENALTIES[roundType] || ROUND_PROXY_PENALTIES.mcq;
+    const appliedPenalty = Number.isFinite(mapping[type]) ? mapping[type] : penalty;
+    state.proxy.score = Math.max(0, state.proxy.score - appliedPenalty);
+    state.proxy.events.push({ type, penalty: appliedPenalty, round: state.proxyRoundType, timestamp: Date.now() });
+}
+
+function startProxyMonitoring() {
+    if (state.proxy.monitoring) return;
+    state.proxy.monitoring = true;
+
+    document.addEventListener('visibilitychange', onProxyVisibilityChange);
+    window.addEventListener('blur', onProxyWindowBlur);
+    document.addEventListener('fullscreenchange', onProxyFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', onProxyFullscreenChange);
+    document.addEventListener('MSFullscreenChange', onProxyFullscreenChange);
+
+    state.proxy.monitorIntervalId = window.setInterval(() => {
+        if (!state.proxy.monitoring) return;
+        if (!isFullscreenActive()) {
+            registerProxyViolationWithCooldown('fullscreen_exit', 15, 4000);
+            requestFullscreenSafe();
+        }
+    }, 1500);
+
+    if (state.proxy.modelsReady) {
+        state.proxy.visionIntervalId = window.setInterval(runVisionChecks, 2500);
+    }
+}
+
+function stopProxyMonitoring() {
+    state.proxy.monitoring = false;
+    document.removeEventListener('visibilitychange', onProxyVisibilityChange);
+    window.removeEventListener('blur', onProxyWindowBlur);
+    document.removeEventListener('fullscreenchange', onProxyFullscreenChange);
+    document.removeEventListener('webkitfullscreenchange', onProxyFullscreenChange);
+    document.removeEventListener('MSFullscreenChange', onProxyFullscreenChange);
+
+    if (state.proxy.monitorIntervalId) {
+        window.clearInterval(state.proxy.monitorIntervalId);
+        state.proxy.monitorIntervalId = null;
+    }
+
+    if (state.proxy.visionIntervalId) {
+        window.clearInterval(state.proxy.visionIntervalId);
+        state.proxy.visionIntervalId = null;
+    }
+
+    state.proxy.visionInFlight = false;
+    state.proxy.noFaceStreak = 0;
+}
+
+function onProxyVisibilityChange() {
+    if (!state.proxy.monitoring) return;
+    if (document.hidden) {
+        registerProxyViolationWithCooldown('tab_hidden', 12, 4000);
+    }
+}
+
+function onProxyWindowBlur() {
+    if (!state.proxy.monitoring) return;
+    registerProxyViolationWithCooldown('window_blur', 8, 4000);
+}
+
+function onProxyFullscreenChange() {
+    if (!state.proxy.monitoring) return;
+    if (!isFullscreenActive()) {
+        registerProxyViolationWithCooldown('fullscreen_exit', 15, 4000);
+        requestFullscreenSafe();
+    }
+}
+
+async function loadVisionModels() {
+    if (state.proxy.modelsReady) {
+        return true;
+    }
+
+    const hasTf = typeof window.tf !== 'undefined';
+    const hasCoco = typeof window.cocoSsd !== 'undefined';
+    const hasFaceDetection = typeof window.FaceDetection !== 'undefined';
+
+    if (!hasTf || !hasCoco || !hasFaceDetection) {
+        return false;
+    }
+
+    try {
+        if (!state.proxy.objectDetector) {
+            state.proxy.objectDetector = await window.cocoSsd.load();
+        }
+
+        if (!state.proxy.faceDetector) {
+            const faceDetector = new window.FaceDetection({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`
+            });
+            faceDetector.setOptions({
+                modelSelection: 0,
+                minDetectionConfidence: 0.5
+            });
+            state.proxy.faceDetector = faceDetector;
+        }
+
+        state.proxy.modelsReady = true;
+        return true;
+    } catch (error) {
+        console.error('Failed to load proctoring models:', error);
+        return false;
+    }
+}
+
+async function detectPhone() {
+    if (!state.proxy.objectDetector || !elements.proxyVideo) {
+        return false;
+    }
+
+    const predictions = await state.proxy.objectDetector.detect(elements.proxyVideo);
+    return predictions.some((item) => item.class === 'cell phone' && item.score >= 0.5);
+}
+
+function detectFaceCount() {
+    return new Promise((resolve) => {
+        if (!state.proxy.faceDetector || !elements.proxyVideo) {
+            resolve(0);
+            return;
+        }
+
+        const timeoutId = window.setTimeout(() => resolve(0), 1000);
+        state.proxy.faceDetector.onResults((result) => {
+            window.clearTimeout(timeoutId);
+            const count = Array.isArray(result?.detections) ? result.detections.length : 0;
+            resolve(count);
+        });
+
+        state.proxy.faceDetector.send({ image: elements.proxyVideo }).catch(() => {
+            window.clearTimeout(timeoutId);
+            resolve(0);
+        });
+    });
+}
+
+async function runVisionChecks() {
+    if (!state.proxy.monitoring || !state.proxy.modelsReady || state.proxy.visionInFlight) {
+        return;
+    }
+
+    if (!elements.proxyVideo || elements.proxyVideo.readyState < 2) {
+        return;
+    }
+
+    state.proxy.visionInFlight = true;
+
+    try {
+        const [phoneDetected, faceCount] = await Promise.all([
+            detectPhone(),
+            detectFaceCount()
+        ]);
+
+        if (phoneDetected) {
+            registerProxyViolationWithCooldown('phone_detected', 25, 9000);
+        }
+
+        if (faceCount > 1) {
+            registerProxyViolationWithCooldown('multiple_faces', 20, 9000);
+            state.proxy.noFaceStreak = 0;
+        } else if (faceCount === 0) {
+            state.proxy.noFaceStreak += 1;
+            if (state.proxy.noFaceStreak >= 2) {
+                registerProxyViolationWithCooldown('no_face', 10, 9000);
+                state.proxy.noFaceStreak = 0;
+            }
+        } else {
+            state.proxy.noFaceStreak = 0;
+        }
+    } catch (error) {
+        console.error('Vision check failed:', error);
+    } finally {
+        state.proxy.visionInFlight = false;
+    }
+}
+
+async function approveSecurityAndContinue() {
+    if (elements.securityError) {
+        elements.securityError.textContent = '';
+    }
+
+    const mediaOk = await requestMediaPermission();
+    if (!mediaOk) {
+        if (elements.securityError) {
+            elements.securityError.textContent = 'Camera and microphone permission is required.';
+        }
+        return;
+    }
+
+    const fullscreenOk = await requestFullscreenSafe();
+    if (!fullscreenOk) {
+        if (elements.securityError) {
+            elements.securityError.textContent = 'Fullscreen mode is required to continue.';
+        }
+        return;
+    }
+
+    const modelsReady = await loadVisionModels();
+    if (!modelsReady) {
+        if (elements.securityError) {
+            elements.securityError.textContent = 'AI proctoring models failed to load. Check network and retry.';
+        }
+        return;
+    }
+
+    if (elements.securityModal) {
+        elements.securityModal.classList.add('hidden');
+    }
+
+    startProxyMonitoring();
+    await beginInterviewAfterSecurity();
+}
+
 // Start Interview
 async function startInterview() {
+    if (!validateInputs()) return;
+
+    if (elements.securityModal) {
+        elements.securityModal.classList.remove('hidden');
+    }
+}
+
+// Start Interview after security approval
+async function beginInterviewAfterSecurity() {
     if (!validateInputs()) return;
 
     // Normalize difficulty to 100%
@@ -427,6 +753,8 @@ function updateTimerDisplay() {
 // Results
 async function showResults() {
     stopTimer();
+    stopProxyMonitoring();
+    stopProxyMediaStream();
     showScreen('results');
 
     try {
@@ -436,7 +764,7 @@ async function showResults() {
         if (state.candidateMode) {
             await submitCandidateResult(data);
             elements.scorePercentage.textContent = 'Done';
-            elements.scoreText.textContent = 'Your MCQ round is submitted successfully. Recruiter will review your score.';
+            elements.scoreText.textContent = `Your MCQ round is submitted successfully. Recruiter will review your score. Proxy score: ${state.proxy.score}`;
 
             const breakdown = document.querySelector('.results-breakdown');
             const details = document.querySelector('.results-details');
@@ -449,7 +777,7 @@ async function showResults() {
 
         // Display score
         elements.scorePercentage.textContent = data.score.percentage + '%';
-        elements.scoreText.textContent = `${data.score.correct} out of ${data.score.total} correct`;
+        elements.scoreText.textContent = `${data.score.correct} out of ${data.score.total} correct | Proxy score: ${state.proxy.score}`;
 
         // Difficulty breakdown
         const diffBreakdown = data.difficulty_breakdown;
@@ -497,7 +825,9 @@ async function submitCandidateResult(resultData) {
                 session_id: state.sessionId,
                 result: resultData,
                 application_id: state.applicationId,
-                round_number: state.roundNumber
+                round_number: state.roundNumber,
+                proxy_score: state.proxy.score,
+                proxy_events: state.proxy.events
             })
         });
     } catch (error) {
@@ -508,6 +838,8 @@ async function submitCandidateResult(resultData) {
 function retryInterview() {
     state.currentQuestionIndex = 0;
     state.answers = {};
+    state.proxy.score = 100;
+    state.proxy.events = [];
     showScreen('interview');
     displayQuestion();
 }
@@ -517,6 +849,10 @@ function resetToSetup() {
     state.questions = [];
     state.currentQuestionIndex = 0;
     state.answers = {};
+    state.proxy.score = 100;
+    state.proxy.events = [];
+    stopProxyMonitoring();
+    stopProxyMediaStream();
     stopTimer();
     showScreen('setup');
 }

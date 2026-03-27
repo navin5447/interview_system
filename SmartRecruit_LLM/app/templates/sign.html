@@ -3,147 +3,285 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Station-S | Login & Signup</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='logcss.css') }}">
+    <title>SmartRecruit | Login & Signup</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        /* Flash Message Styles */
+        :root {
+            --color-purple: #7353F6;
+            --color-sky: #5CC9F5;
+            --color-graphite: #231F20;
+            --color-emerald: #10B981;
+            --color-rose: #F43F5E;
+            --color-surface: #FFFFFF;
+            --color-border-subtle: #E5E7EB;
+            --shadow-soft: 0 6px 20px rgba(115, 83, 246, 0.16);
+            --shadow-hover: 0 12px 30px rgba(115, 83, 246, 0.22);
+            --gradient-primary: linear-gradient(135deg, #7353F6 0%, #5CC9F5 100%);
+            --tran-fast: all 0.2s ease;
+            --tran-base: all 0.3s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Montserrat', sans-serif;
+            min-height: 100vh;
+            background-image: linear-gradient(rgba(35, 31, 32, 0.2), rgba(35, 31, 32, 0.2)), url("{{ url_for('static', filename='images/background.jpg') }}");
+            background-size: cover;
+            background-position: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+
         .alert-container {
             position: fixed;
-            top: 10px;
+            top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            width: 90%;
-            max-width: 500px;
+            width: min(92vw, 560px);
             z-index: 1000;
         }
 
         .alert {
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 5px;
+            padding: 14px 16px;
+            margin-bottom: 10px;
+            border-radius: 10px;
             color: #fff;
-            font-size: 16px;
+            font-size: 14px;
+            font-weight: 600;
             display: flex;
             align-items: center;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            gap: 10px;
+            box-shadow: var(--shadow-soft);
         }
 
-        .alert.alert-info {
-            background-color: #007bff; /* Blue for general alerts */
+        .alert-info { background: linear-gradient(135deg, #3B82F6, #1D4ED8); }
+        .alert-danger { background: linear-gradient(135deg, #EF4444, #DC2626); }
+        .alert-success { background: linear-gradient(135deg, #10B981, #059669); }
+
+        .auth-shell {
+            width: min(1000px, 96vw);
+            display: grid;
+            grid-template-columns: 1.1fr 1fr;
+            gap: 20px;
         }
 
-        .alert.alert-danger {
-            background-color: #dc3545; /* Red for errors */
+        .panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            border-radius: 16px;
+            box-shadow: var(--shadow-soft);
         }
 
-        .alert .icon {
-            margin-right: 10px;
-            font-size: 18px;
-        }
-        
-        .alert.alert-success {
-            background-color: #1a9d1a; /* Blue for general alerts */
+        .form-panel {
+            padding: 28px;
         }
 
-        /* Dark Mode */
-        body.dark .alert.alert-info {
-            background-color: #0056b3; /* Darker blue for alerts in dark mode */
+        .form-title {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 36px;
+            letter-spacing: 0.6px;
+            color: var(--color-graphite);
+            margin-bottom: 18px;
         }
 
-        body.dark .alert.alert-danger {
-            background-color: #c82333; /* Darker red for errors in dark mode */
+        .switch-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 18px;
         }
 
-        body.dark .alert.alert-success {
-            background-color: #c82333; /* Darker red for errors in dark mode */
+        .switch-btn {
+            border: 1px solid var(--color-border-subtle);
+            background: #fff;
+            color: var(--color-graphite);
+            padding: 10px 14px;
+            font-size: 14px;
+            font-weight: 700;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: var(--tran-fast);
         }
 
+        .switch-btn.active {
+            border-color: transparent;
+            background: var(--gradient-primary);
+            color: #fff;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        input, select {
+            width: 100%;
+            border: 1px solid var(--color-border-subtle);
+            border-radius: 10px;
+            padding: 13px 14px;
+            font-size: 14px;
+            font-family: 'Montserrat', sans-serif;
+            color: var(--color-graphite);
+            background: #fff;
+            transition: var(--tran-fast);
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--color-purple);
+            box-shadow: 0 0 0 3px rgba(115, 83, 246, 0.12);
+        }
+
+        .submit-btn {
+            margin-top: 4px;
+            border: none;
+            border-radius: 10px;
+            background: var(--gradient-primary);
+            color: #fff;
+            padding: 13px 14px;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: var(--tran-fast);
+            box-shadow: var(--shadow-soft);
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .info-panel {
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .info-title {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: 38px;
+            letter-spacing: 0.6px;
+            color: var(--color-graphite);
+            margin-bottom: 10px;
+        }
+
+        .info-text {
+            color: var(--color-graphite);
+            font-size: 16px;
+            line-height: 1.8;
+            opacity: 0.9;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 900px) {
+            .auth-shell {
+                grid-template-columns: 1fr;
+            }
+
+            .info-panel {
+                display: none;
+            }
+
+            .form-title {
+                font-size: 32px;
+            }
+        }
     </style>
 </head>
-<body style="background-image: url('{{ url_for('static', filename='images/background.jpg') }}'); background-size: cover; background-position: center;">
+<body>
     <div class="alert-container">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
                     <div class="alert alert-{{ category }}">
-                        <i class="fas fa-info-circle icon"></i> <!-- Add appropriate icon based on category if needed -->
-                        {{ message }}
+                        <i class="fas fa-info-circle"></i>
+                        <span>{{ message }}</span>
                     </div>
                 {% endfor %}
             {% endif %}
         {% endwith %}
     </div>
-    
-    <div class="container">
-        <div class="forms-container">
-            <div class="form-control signup-form" style="justify-content: flex-start;">
-                <form method="POST" action="/sign">
-                    <h2>Signup</h2>
-                    <select name="role" required>
-                        <option value="applicant" selected>Applicant</option>
-                        <option value="recruiter">Recruiter / HR (Admin)</option>
-                    </select>
-                    <input type="text" name="first_name" placeholder="First Name" required />
-                    <input type="text" name="last_name" placeholder="Last Name" required />
-                    <input type="text" name="company_name" placeholder="Company Name (required for Recruiter/HR)" />
-                    <input type="email" name="email" placeholder="Email" required />
-                    <input type="tel" name="phone_number" placeholder="Phone Number" required />
-                    <input type="date" name="birthday" placeholder="Birthday" required />
-                    <input type="password" name="password" placeholder="Password" required />
-                    <input type="password" name="confirm_password" placeholder="Confirm Password" required />
-                    <input type="hidden" name="action" value="signup" />
-                    <button type="submit">Signup</button>
-                </form>
+
+    <div class="auth-shell">
+        <div class="panel form-panel">
+            <h1 class="form-title" id="auth-title">Signup</h1>
+
+            <div class="switch-row">
+                <button type="button" class="switch-btn active" id="show-signup">Signup</button>
+                <button type="button" class="switch-btn" id="show-signin">Signin</button>
             </div>
-            <div class="form-control signin-form">
-                <form method="POST" action="/sign">
-                    <h2>Signin</h2>
-                    <input type="email" name="email" placeholder="Email" required />
-                    <input type="password" name="password" placeholder="Password" required />
-                    <input type="hidden" name="action" value="signin" />
-                    <button type="submit">Signin</button>
-                </form>
-            </div>
+
+            <form method="POST" action="/sign" id="signup-form">
+                <select name="role" required>
+                    <option value="applicant" selected>Applicant</option>
+                    <option value="recruiter">Recruiter / HR (Admin)</option>
+                </select>
+                <input type="text" name="first_name" placeholder="First Name" required>
+                <input type="text" name="last_name" placeholder="Last Name" required>
+                <input type="text" name="company_name" placeholder="Company Name (required for Recruiter/HR)">
+                <input type="email" name="email" placeholder="Email" required>
+                <input type="tel" name="phone_number" placeholder="Phone Number" required>
+                <input type="date" name="birthday" required>
+                <input type="password" name="password" placeholder="Password" required>
+                <input type="password" name="confirm_password" placeholder="Confirm Password" required>
+                <input type="hidden" name="action" value="signup">
+                <button type="submit" class="submit-btn">Signup</button>
+            </form>
+
+            <form method="POST" action="/sign" id="signin-form" class="hidden">
+                <input type="email" name="email" placeholder="Email" required>
+                <input type="password" name="password" placeholder="Password" required>
+                <input type="hidden" name="action" value="signin">
+                <button type="submit" class="submit-btn">Signin</button>
+            </form>
         </div>
-        <div class="intros-container">
-            <div class="intro-control signin-intro">
-                <div class="intro-control__inner">
-                    <h2>Welcome to Station-S!</h2>
-                    <p>
-                        Welcome back to Station-S! We're thrilled to have you here. Sign in to access your career opportunities and manage your applications with ease.
-                    </p>
-                    <button id="signup-btn">New here? Create an Account</button>
-                </div>
-            </div>
-            <div class="intro-control signup-intro">
-                <div class="intro-control__inner">
-                    <h2>Join Station-S Today!</h2>
-                    <p>
-                        Join our thriving community at Station-S. Create your account to explore exciting career opportunities, interview directly with employers, and advance your professional journey.
-                    </p>
-                    <button id="signin-btn">Already have an account? Sign In</button>
-                </div>
-            </div>
+
+        <div class="panel info-panel">
+            <h2 class="info-title">Welcome to SmartRecruit</h2>
+            <p class="info-text">Create an account to manage hiring workflows, review applicants, and run interviews with a premium dashboard experience.</p>
         </div>
     </div>
-    <script>
-        document.addEventListener("DOMContentLoaded", () => {
-            const signupBtn = document.getElementById("signup-btn");
-            const signinBtn = document.getElementById("signin-btn");
-            const mainContainer = document.querySelector(".container");
 
-            signupBtn.addEventListener("click", () => {
-                mainContainer.classList.toggle("change");
-                document.querySelector(".intro-control.signin-intro").style.opacity = '0';
-                document.querySelector(".intro-control.signup-intro").style.opacity = '1';
-            });
-            signinBtn.addEventListener("click", () => {
-                mainContainer.classList.toggle("change");
-                document.querySelector(".intro-control.signin-intro").style.opacity = '1';
-                document.querySelector(".intro-control.signup-intro").style.opacity = '0';
-            });
-        });
+    <script>
+        const showSignupBtn = document.getElementById('show-signup');
+        const showSigninBtn = document.getElementById('show-signin');
+        const signupForm = document.getElementById('signup-form');
+        const signinForm = document.getElementById('signin-form');
+        const authTitle = document.getElementById('auth-title');
+
+        function showSignup() {
+            authTitle.textContent = 'Signup';
+            signupForm.classList.remove('hidden');
+            signinForm.classList.add('hidden');
+            showSignupBtn.classList.add('active');
+            showSigninBtn.classList.remove('active');
+        }
+
+        function showSignin() {
+            authTitle.textContent = 'Signin';
+            signinForm.classList.remove('hidden');
+            signupForm.classList.add('hidden');
+            showSigninBtn.classList.add('active');
+            showSignupBtn.classList.remove('active');
+        }
+
+        showSignupBtn.addEventListener('click', showSignup);
+        showSigninBtn.addEventListener('click', showSignin);
     </script>
 </body>
 </html>

@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Interview Simulator</title>
+    <title>Station-S | MCQ Round</title>
     <link rel="stylesheet" href="styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container">
         <!-- Header -->
         <header class="header">
-            <h1>AI Interview Simulator</h1>
-            <p class="subtitle">Powered by Groq LLM</p>
+            <h1>Station-S MCQ Round</h1>
+            <p class="subtitle">Secure assessment experience</p>
         </header>
 
         <!-- Screen 1: Setup -->
@@ -171,8 +171,30 @@
                 <p class="loading-sub">This may take a few seconds</p>
             </div>
         </div>
+
+        <div id="security-modal" class="security-modal hidden">
+            <div class="security-modal-card">
+                <h3>Security Confirmation</h3>
+                <p>This round requires secure proctoring compliance before starting.</p>
+                <ul>
+                    <li>Fullscreen mode is mandatory during the round.</li>
+                    <li>Tab switching or window blur will be logged and reduce proxy score.</li>
+                    <li>Camera/microphone monitoring is enabled for integrity checks.</li>
+                </ul>
+                <p id="security-error" class="security-error"></p>
+                <div class="security-actions">
+                    <button id="security-approve-btn" class="primary-btn">I Agree & Continue</button>
+                </div>
+            </div>
+        </div>
+
+        <video id="proxy-video" autoplay playsinline muted style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;"></video>
+        <canvas id="proxy-canvas" width="640" height="480" style="position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;"></canvas>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

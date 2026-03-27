@@ -7,9 +7,10 @@ import threading
 import time
 import zipfile
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from email.message import EmailMessage
 from typing import Any
+from sqlalchemy.exc import OperationalError
 
 import pdfplumber  # type: ignore
 
@@ -33,6 +34,19 @@ from .models import (
 
 
 EMAIL_RETRY_LOCK = threading.Lock()
+AUTO_SHORTLIST_LOCK = threading.Lock()
+
+
+def _commit_with_retry(max_attempts: int = 6, base_delay_seconds: float = 0.25) -> None:
+    for attempt in range(max_attempts):
+        try:
+            db.session.commit()
+            return
+        except OperationalError as exc:
+            db.session.rollback()
+            if 'database is locked' not in str(exc).lower() or attempt == max_attempts - 1:
+                raise
+            time.sleep(base_delay_seconds * (attempt + 1))
 
 
 @dataclass
@@ -400,6 +414,30 @@ def _is_transient_email_error(error_message: str | None) -> bool:
     return any(marker in text for marker in transient_markers)
 
 
+def _is_permanent_email_error(error_message: str | None) -> bool:
+    text = (error_message or '').lower()
+    permanent_markers = [
+        '5.4.5',
+        'daily user sending limit exceeded',
+        'user-rate limit exceeded',
+        'mailbox unavailable',
+        'authentication credentials invalid',
+        'invalid credentials',
+        'recipient address rejected',
+        'relay access denied',
+        '550',
+        '553',
+    ]
+    return any(marker in text for marker in permanent_markers)
+
+
+def _extract_error_message_from_status(status_text: str | None) -> str:
+    raw = status_text or ''
+    if ':' not in raw:
+        return ''
+    return raw.split(':', 1)[1].strip()
+
+
 def _parse_retry_count(status_text: str | None) -> int:
     raw = status_text or ''
     match = re.search(r'retry=(\d+)', raw)
@@ -433,7 +471,11 @@ def _deliver_email_event(event: EmailEvent, reply_to: str | None = None) -> tupl
             break
         time.sleep(base_delay * attempt_index)
 
-    event.status = f'failed(retry={attempts_made}): {last_error or "unknown error"}'
+    final_error = last_error or "unknown error"
+    if _is_permanent_email_error(final_error):
+        event.status = f'failed_permanent: {final_error}'
+    else:
+        event.status = f'failed(retry={attempts_made}): {final_error}'
     return False, last_error, attempts_made
 
 
@@ -457,10 +499,9 @@ def dispatch_email(
         recipient=applicant.email,
         status='pending',
     )
-    db.session.add(event)
-    db.session.flush()
-
     sent, error_message, attempts_made = _deliver_email_event(event, reply_to=reply_to)
+
+    db.session.add(event)
     logging.info(
         "Email dispatch %s for %s -> %s (attempts=%s)",
         'succeeded' if sent else 'failed',
@@ -504,6 +545,12 @@ def retry_failed_email_events(*, limit: int = 50) -> dict[str, int]:
                 skipped += 1
                 continue
 
+            prior_error = _extract_error_message_from_status(event.status)
+            if _is_permanent_email_error(prior_error):
+                event.status = f'failed_permanent: {prior_error or "smtp permanent failure"}'
+                skipped += 1
+                continue
+
             reply_to = None
             if event.job_id is not None:
                 cfg = JobConfig.query.filter_by(job_id=event.job_id, confirmed=True).first()
@@ -519,7 +566,7 @@ def retry_failed_email_events(*, limit: int = 50) -> dict[str, int]:
                 still_failed += 1
 
         if processed > 0:
-            db.session.commit()
+            _commit_with_retry()
 
         return {
             'processed': processed,
@@ -561,6 +608,14 @@ def start_email_retry_worker(flask_app) -> None:
 
 
 def send_shortlisted_email_now(*, applicant: User, job: Job, config: JobConfig, application_id: int) -> None:
+    existing_event = (
+        EmailEvent.query
+        .filter_by(application_id=application_id, event_type='SHORTLISTED')
+        .first()
+    )
+    if existing_event is not None:
+        return
+
     subject = f"You are shortlisted for {job.title}"
     body = (
         f"Hi {applicant.first_name},\n\n"
@@ -578,6 +633,41 @@ def send_shortlisted_email_now(*, applicant: User, job: Job, config: JobConfig, 
         body=body,
         reply_to=config.reply_to_email,
     )
+
+
+def ensure_shortlisted_email_delivery(*, job: Job, config: JobConfig) -> dict[str, int]:
+    shortlisted_apps = Application.query.filter_by(job_id=job.id, status='Shortlisted').all()
+    sent_count = 0
+    skipped_count = 0
+
+    for app in shortlisted_apps:
+        existing_event = (
+            EmailEvent.query
+            .filter_by(application_id=app.id, event_type='SHORTLISTED')
+            .first()
+        )
+        if existing_event is not None:
+            skipped_count += 1
+            continue
+
+        applicant = User.query.get(app.user_id)
+        if applicant is None:
+            skipped_count += 1
+            continue
+
+        send_shortlisted_email_now(
+            applicant=applicant,
+            job=job,
+            config=config,
+            application_id=app.id,
+        )
+        sent_count += 1
+
+    return {
+        'checked': len(shortlisted_apps),
+        'sent_now': sent_count,
+        'skipped': skipped_count,
+    }
 
 
 def schedule_shortlisted_email(
@@ -620,7 +710,7 @@ def schedule_shortlisted_email(
                     config=config_ref,
                     application_id=app_ref.id,
                 )
-                db.session.commit()
+                _commit_with_retry()
             except Exception as exc:
                 db.session.rollback()
                 logging.error("Failed delayed shortlisted email for applicant_id=%s: %s", applicant_id, exc)
@@ -728,7 +818,7 @@ def run_shortlisting(job: Job, config: JobConfig) -> dict[str, Any]:
                     reply_to=config.reply_to_email,
                 )
 
-    db.session.commit()
+    _commit_with_retry()
 
     return {
         "received": len(applications),
@@ -739,7 +829,75 @@ def run_shortlisting(job: Job, config: JobConfig) -> dict[str, Any]:
 
 
 def should_auto_shortlist(job: Job, config: JobConfig) -> bool:
-    return datetime.utcnow() >= config.application_deadline
+    delay_seconds = 180
+    try:
+        from flask import current_app
+        delay_seconds = int(current_app.config.get('SHORTLIST_TRIGGER_DELAY_SECONDS', 180))
+    except Exception:
+        delay_seconds = 180
+
+    return datetime.now() >= (config.application_deadline + timedelta(seconds=max(0, delay_seconds)))
+
+
+def start_auto_shortlist_worker(flask_app) -> None:
+    enabled = bool(flask_app.config.get('AUTO_SHORTLIST_WORKER_ENABLED', True))
+    if not enabled:
+        return
+
+    if flask_app.extensions.get('auto_shortlist_worker_started'):
+        return
+    flask_app.extensions['auto_shortlist_worker_started'] = True
+
+    interval_seconds = max(30, int(flask_app.config.get('AUTO_SHORTLIST_INTERVAL_SECONDS', 60)))
+    delay_seconds = max(0, int(flask_app.config.get('SHORTLIST_TRIGGER_DELAY_SECONDS', 180)))
+
+    def _worker_loop() -> None:
+        while True:
+            try:
+                with flask_app.app_context():
+                    now_local = datetime.now()
+                    due_configs = JobConfig.query.filter_by(confirmed=True).all()
+                    for config in due_configs:
+                        trigger_time = config.application_deadline + timedelta(seconds=delay_seconds)
+                        if now_local < trigger_time:
+                            continue
+
+                        job = Job.query.get(config.job_id)
+                        if job is None:
+                            continue
+
+                        has_pending = (
+                            Application.query
+                            .filter_by(job_id=job.id)
+                            .filter(Application.status.in_(['Applied', 'Pending']))
+                            .first()
+                            is not None
+                        )
+
+                        with AUTO_SHORTLIST_LOCK:
+                            report = {
+                                'received': 0,
+                                'shortlisted': 0,
+                                'rejected': 0,
+                            }
+                            if has_pending:
+                                report = run_shortlisting(job, config)
+
+                            email_sync = ensure_shortlisted_email_delivery(job=job, config=config)
+                            logging.info(
+                                "Auto shortlisting/sync executed for job_id=%s: pending=%s received=%s shortlisted=%s rejected=%s shortlist_email_sync=%s",
+                                job.id,
+                                has_pending,
+                                report.get('received', 0),
+                                report.get('shortlisted', 0),
+                                report.get('rejected', 0),
+                                email_sync,
+                            )
+            except Exception as exc:
+                logging.error("Auto shortlist worker failure: %s", exc)
+            time.sleep(interval_seconds)
+
+    threading.Thread(target=_worker_loop, daemon=True).start()
 
 
 def build_funnel_summary(job: Job) -> str:
@@ -867,7 +1025,7 @@ def complete_round_and_advance(job: Job, round_number: int, evaluations: list[di
                     reply_to=config.reply_to_email,
                 )
 
-    db.session.commit()
+    _commit_with_retry()
 
     return {
         "round": round_number,

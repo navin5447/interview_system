@@ -4,10 +4,13 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Premium Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Stylesheets -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="https://unicons.iconscout.com/release/v4.0.0/css/line.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <title>{% block title %}Station-S | Home{% endblock %}</title>
+    <title>{% block title %}SmartRecruit | Premium Recruitment Platform{% endblock %}</title>
 </head>
 <body>
     <nav>
@@ -18,15 +21,13 @@
         </div>
         <div class="menu-items">
             <ul class="nav-links">
+                {% if user and user.role == 'applicant' %}
                 <li><a href="{{ url_for('main.home') }}">
                     <i class="uil uil-estate"></i>
                     <span class="link-name">Home</span>
                 </a></li>
+                {% endif %}
                 {% if user and user.role in ['applicant', 'both'] %}
-                <li><a href="{{ url_for('main.applicant_dashboard') }}">
-                    <i class="uil uil-user-square"></i>
-                    <span class="link-name">Applicant Dashboard</span>
-                </a></li>
                 <li><a href="{{ url_for('main.browse_jobs') }}">
                     <i class="uil uil-search"></i>
                     <span class="link-name">Browse Jobs</span>
@@ -72,13 +73,17 @@
     <section class="dashboard">
         <div class="top">
             <i class="uil uil-bars sidebar-toggle"></i>
+            <div class="search-box">
+                <i class="uil uil-search"></i>
+                <input type="text" placeholder="Search jobs, candidates, applications...">
+            </div>
             {% if user and user.profile_photo %}
                 <a href="{{ url_for('main.settings') }}">
-                    <img src="{{ url_for('static', filename='uploads/photos/' + user.profile_photo) }}" alt="Profile Photo">
+                    <img src="{{ url_for('static', filename='uploads/photos/' + user.profile_photo) }}" alt="Profile Photo" title="Profile Settings">
                 </a>
             {% else %}
                 <a href="{{ url_for('main.settings') }}">
-                    <img src="{{ url_for('static', filename='images/default-profile.png') }}" alt="Default Profile Photo">
+                    <img src="{{ url_for('static', filename='images/default-profile.png') }}" alt="Default Profile Photo" title="Profile Settings">
                 </a>
             {% endif %}
         </div>

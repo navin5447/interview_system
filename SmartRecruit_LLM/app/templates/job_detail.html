@@ -246,7 +246,11 @@
         <a href="{{ url_for('main.my_jobs') }}" class="back-link">&larr; Back to My Jobs</a>
         {% endif %}
         {% if user and user.role in ['applicant', 'both'] %}
-        <a href="{{ url_for('main.apply', job_id = job.id) }}" class="apply-button">Apply</a>
+            {% if has_applied %}
+            <a href="{{ url_for('main.view_applications') }}" class="apply-button" style="background-color:#6c757d;">Already Applied</a>
+            {% else %}
+            <a href="{{ url_for('main.apply', job_id=job.id) }}" class="apply-button">Apply Now</a>
+            {% endif %}
         {% endif %}
     </div>
 </div>

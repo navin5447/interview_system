@@ -7,7 +7,11 @@ import json
 import time
 import logging
 import pdfplumber  # type: ignore
-from sentence_transformers import SentenceTransformer, util  # type: ignore
+try:
+    from sentence_transformers import SentenceTransformer, util  # type: ignore
+except Exception:
+    SentenceTransformer = None
+    util = None
 
 # Lazy-initialize the sentence transformer model so app startup and DB setup
 # do not block on model download.
@@ -17,6 +21,8 @@ logging.basicConfig(level=logging.INFO)
 def get_sentence_model():
     """Returns a cached sentence transformer model instance."""
     global model
+    if SentenceTransformer is None:
+        return None
     if model is None:
         model = SentenceTransformer('multi-qa-mpnet-base-dot-v1')
     return model
@@ -74,12 +80,20 @@ def compute_similarity(cv_text, job_description):
     job_description = preprocess_text(job_description)
 
     sentence_model = get_sentence_model()
-    embeddings_cv = sentence_model.encode(cv_text, convert_to_tensor=True)
-    embeddings_job_desc = sentence_model.encode(job_description, convert_to_tensor=True)
+    if sentence_model is not None and util is not None:
+        embeddings_cv = sentence_model.encode(cv_text, convert_to_tensor=True)
+        embeddings_job_desc = sentence_model.encode(job_description, convert_to_tensor=True)
+        similarity_score = util.cos_sim(embeddings_cv, embeddings_job_desc)
+        return float(similarity_score.item())
 
-    similarity_score = util.cos_sim(embeddings_cv, embeddings_job_desc)
+    cv_tokens = {token for token in cv_text.lower().split() if token}
+    job_tokens = {token for token in job_description.lower().split() if token}
+    if not cv_tokens or not job_tokens:
+        return 0.0
 
-    return similarity_score.item()
+    overlap = len(cv_tokens.intersection(job_tokens))
+    total = len(cv_tokens.union(job_tokens))
+    return float(overlap / total) if total else 0.0
 
 def evaluate_cv(cv_text, job_description, threshold = 0.5):
     """
@@ -284,3 +298,110 @@ def extract_score(feedback):
 
     logging.warning("No score found in feedback.")
     return None
+
+def parse_job_description_pdf(file_stream) -> dict:
+    """
+    Parses a PDF file stream and extracts structured job data based on predefined sections.
+
+    Args:
+        file_stream: A file-like object representing the PDF.
+
+    Returns:
+        A dictionary containing the extracted job data.
+    """
+    extracted_data = {}
+
+    def extract_first_group(pattern: str, text: str, flags: int = re.IGNORECASE) -> str:
+        match = re.search(pattern, text, flags)
+        if not match:
+            return ""
+        return (match.group(1) or "").strip()
+
+    with pdfplumber.open(file_stream) as pdf:
+        full_text = ""
+        for page in pdf.pages:
+            page_text = page.extract_text() or ""
+            full_text += page_text + "\n"
+
+    # Define regex for each section
+    sections = {
+        "job_basics": r"JOB BASICS\n([\s\S]*?)(?=\nQUALIFICATIONS|\Z)",
+        "qualifications": r"QUALIFICATIONS\n([\s\S]*?)(?=\nSHORTLISTING CRITERIA|\Z)",
+        "shortlisting": r"SHORTLISTING CRITERIA\n([\s\S]*?)(?=\nINTERVIEW ROUNDS|\Z)",
+        "interview_rounds": r"INTERVIEW ROUNDS\n([\s\S]*?)(?=\nNOTIFICATION PREFERENCES|\Z)",
+        "notifications": r"NOTIFICATION PREFERENCES\n([\s\S]*?)(?=\Z)",
+    }
+
+    # --- Helper for list extraction ---
+    def extract_list_items(text, key):
+        match = re.search(rf"{key}:\n((?:- .+\n?)+)", text, re.IGNORECASE)
+        if match:
+            return [item.strip('- ').strip() for item in match.group(1).strip().split('\n') if item.strip()]
+        return []
+
+    # --- 1. Job Basics ---
+    job_basics_text = re.search(sections["job_basics"], full_text, re.IGNORECASE)
+    if job_basics_text:
+        basics_content = job_basics_text.group(1)
+        extracted_data["job_title"] = extract_first_group(r"Job Title:\s*(.*)", basics_content)
+        extracted_data["department"] = extract_first_group(r"Department:\s*(.*)", basics_content)
+        extracted_data["employment_type"] = extract_first_group(r"Employment Type:\s*(.*)", basics_content)
+        extracted_data["work_mode"] = extract_first_group(r"Work Mode:\s*(.*)", basics_content)
+        extracted_data["location"] = extract_first_group(r"Location:\s*(.*)", basics_content)
+        extracted_data["salary"] = extract_first_group(r"Salary:\s*(.*)", basics_content)
+        extracted_data["application_deadline"] = extract_first_group(r"Application Deadline:\s*(.*)", basics_content)
+        
+        desc_match = re.search(r"Job Description:\n([\s\S]*?)(?=\nRole Summary:|\Z)", basics_content)
+        extracted_data["job_description"] = desc_match.group(1).strip() if desc_match else ""
+        
+        summary_match = re.search(r"Role Summary:\n([\s\S]*)", basics_content)
+        extracted_data["role_summary"] = summary_match.group(1).strip() if summary_match else ""
+
+    # --- 2. Qualifications ---
+    qualifications_text = re.search(sections["qualifications"], full_text, re.IGNORECASE)
+    if qualifications_text:
+        qual_content = qualifications_text.group(1)
+        extracted_data["key_responsibilities"] = extract_list_items(qual_content, "Key Responsibilities")
+        extracted_data["required_qualifications"] = extract_list_items(qual_content, "Required Qualifications")
+        extracted_data["preferred_qualifications"] = extract_list_items(qual_content, "Preferred Qualifications")
+        extracted_data["tech_stack"] = extract_list_items(qual_content, "Tech Stack / Tools")
+
+    # --- 3. Shortlisting Criteria ---
+    shortlisting_text = re.search(sections["shortlisting"], full_text, re.IGNORECASE)
+    if shortlisting_text:
+        shortlist_content = shortlisting_text.group(1)
+        extracted_data["expected_applicants"] = extract_first_group(r"Expected Applicants:\s*(.*)", shortlist_content)
+        extracted_data["shortlist_mode"] = extract_first_group(r"Shortlist Mode:\s*(.*)", shortlist_content)
+        extracted_data["shortlist_value"] = extract_first_group(r"Shortlist Value:\s*(.*)", shortlist_content)
+        extracted_data["min_ats_threshold"] = extract_first_group(r"Minimum ATS Threshold:\s*(.*)", shortlist_content)
+        extracted_data["mandatory_filters"] = extract_list_items(shortlist_content, "Mandatory Filters")
+        extracted_data["preferred_filters"] = extract_list_items(shortlist_content, "Preferred Filters")
+
+    # --- 4. Interview Rounds ---
+    interview_rounds_text = re.search(sections["interview_rounds"], full_text, re.IGNORECASE)
+    if interview_rounds_text:
+        rounds_content = interview_rounds_text.group(1)
+        round_blocks = re.split(r"Round \d+:", rounds_content)[1:]
+        extracted_data["interview_rounds"] = []
+        for i, block in enumerate(round_blocks, 1):
+            round_data = {"round_number": i}
+            round_data["round_name"] = extract_first_group(r"Round Name:\s*(.*)", block)
+            round_data["round_type"] = extract_first_group(r"Round Type:\s*(.*)", block)
+            round_data["duration"] = extract_first_group(r"Duration:\s*(.*)", block)
+            round_data["advance_count"] = extract_first_group(r"Advance Count:\s*(.*)", block)
+            round_data["schedule_window"] = extract_first_group(r"Schedule:\s*(.*)", block)
+            round_data["topics"] = extract_list_items(block, "Topics")
+            round_data["evaluation_rubric"] = extract_list_items(block, "Evaluation Rubric")
+            extracted_data["interview_rounds"].append(round_data)
+
+    # --- 5. Notification Preferences ---
+    notifications_text = re.search(sections["notifications"], full_text, re.IGNORECASE)
+    if notifications_text:
+        notif_content = notifications_text.group(1)
+        extracted_data["email_tone"] = extract_first_group(r"Email Tone:\s*(.*)", notif_content)
+        extracted_data["send_rejection_emails"] = extract_first_group(r"Send Rejection Emails:\s*(.*)", notif_content)
+        extracted_data["company_name"] = extract_first_group(r"Company Name:\s*(.*)", notif_content)
+        extracted_data["reply_to_email"] = extract_first_group(r"Reply-To Email:\s*(.*)", notif_content)
+        extracted_data["company_logo_url"] = extract_first_group(r"Company Logo URL:\s*(.*)", notif_content)
+
+    return extracted_data
