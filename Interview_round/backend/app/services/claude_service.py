@@ -73,6 +73,81 @@ class GroqService:
         return "role-specific"
 
     @staticmethod
+    def _extract_topics(hr_prompt: str, role: str, resume_skills: list[str]) -> list[str]:
+        skills = [str(s).strip() for s in (resume_skills or []) if str(s).strip()]
+        prompt = (hr_prompt or "").strip()
+        collected: list[str] = []
+
+        match = re.search(r"focus topics\s*:\s*([^\n\.]+)", prompt, flags=re.IGNORECASE)
+        if match:
+            collected.extend([item.strip() for item in re.split(r",|;|\|", match.group(1)) if item.strip()])
+
+        if not collected and prompt:
+            seed = re.split(r"\.|\n", prompt)[0]
+            collected.extend([item.strip() for item in re.split(r",|;|\|", seed) if item.strip()])
+
+        collected.extend(skills[:8])
+
+        sanitized: list[str] = []
+        seen: set[str] = set()
+        for topic in collected:
+            normalized = re.sub(r"\s+", " ", topic).strip(" .:-")
+            if not normalized:
+                continue
+            key = normalized.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            sanitized.append(normalized)
+
+        defaults = [
+            role,
+            "problem solving",
+            "system design",
+            "debugging",
+            "communication",
+            "culture fit",
+            "stakeholder management",
+        ]
+        for item in defaults:
+            key = item.strip().lower()
+            if key and key not in seen:
+                sanitized.append(item)
+                seen.add(key)
+
+        return sanitized[:10]
+
+    @staticmethod
+    def _unique_question_items(items: list[QuestionItem], total: int) -> list[QuestionItem]:
+        unique: list[QuestionItem] = []
+        seen: set[str] = set()
+
+        for q in items:
+            key = re.sub(r"\s+", " ", (q.question or "")).strip().lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            unique.append(q)
+            if len(unique) >= total:
+                break
+
+        normalized: list[QuestionItem] = []
+        for idx, q in enumerate(unique[:total], start=1):
+            normalized.append(
+                QuestionItem(
+                    id=f"q{idx}",
+                    question=q.question,
+                    type=q.type,
+                    difficulty=q.difficulty,
+                    expected_keywords=q.expected_keywords,
+                    expected_answer=q.expected_answer,
+                    rubric=q.rubric,
+                    assessment_focus=q.assessment_focus,
+                )
+            )
+        return normalized
+
+    @staticmethod
     def _build_expected_answer(keywords: list[str], assessment_focus: str, question: str) -> str:
         parts = [
             "Candidate should provide a structured response with specific ownership, rationale, and measurable outcomes.",
@@ -185,92 +260,75 @@ class GroqService:
         scenario_target: int,
         resume_target: int,
     ) -> list[QuestionItem]:
-        skills = [s for s in resume_skills if s.strip()][:4]
-        top_skill = skills[0] if skills else role
-        second_skill = skills[1] if len(skills) > 1 else "stakeholder communication"
+        skills = [s for s in resume_skills if s.strip()][:6]
+        topics = self._extract_topics(hr_prompt, role, skills)
 
-        scenario_pool = [
-            (
-                f"A critical client escalation happens 2 hours before release. As a {role}, how will you stabilize delivery while protecting team morale?",
-                "hard",
-                ["prioritization", "communication", "risk management", "stakeholders"],
-                "Decision-making under pressure",
-            ),
-            (
-                f"Imagine a key teammate resigns mid-quarter. What 30-60-90 day plan would you execute to keep {role} outcomes on track?",
-                "hard",
-                ["planning", "ownership", "resource allocation", "execution"],
-                "Execution resilience",
-            ),
-            (
-                "You discover that two departments have conflicting success metrics. How do you align them and still ship measurable business value?",
-                "medium",
-                ["alignment", "trade-offs", "metrics", "stakeholder management"],
-                "Cross-functional alignment",
-            ),
-            (
-                "A high-potential teammate is underperforming due to unclear expectations. How would you coach them and evaluate improvement?",
-                "medium",
-                ["coaching", "expectations", "feedback", "accountability"],
-                "People leadership",
-            ),
+        scenario_templates = [
+            "You are leading a {role} project focused on {topic}. A production incident appears one day before release; how will you diagnose root cause, communicate risk, and recover delivery?",
+            "For a {role} system centered on {topic}, latency suddenly doubles after deployment. Walk through your triage plan, rollback criteria, and postmortem actions.",
+            "In a {role} initiative around {topic}, two solutions conflict on speed vs reliability. How will you decide, justify trade-offs, and align stakeholders?",
+            "Your team is building {topic} capability for this {role}. Mid-sprint, requirements change. How do you re-scope without compromising quality?",
         ]
+        scenario_pool = []
+        for idx, topic in enumerate(topics[:6]):
+            template = scenario_templates[idx % len(scenario_templates)]
+            scenario_pool.append(
+                (
+                    template.format(role=role, topic=topic),
+                    "hard" if idx % 2 == 0 else "medium",
+                    [topic.lower(), "root cause", "trade-off", "risk", "communication"],
+                    f"Scenario decision making in {topic}",
+                )
+            )
 
-        resume_pool = [
-            (
-                f"Your resume highlights {top_skill}. Walk me through one project where you owned the outcome end-to-end, including a measurable result.",
-                "medium",
-                [top_skill.lower(), "ownership", "impact", "result"],
-                "Authenticity and confidence validation",
-            ),
-            (
-                f"You listed {second_skill}. Tell me about a difficult decision you made in that area and what data influenced your choice.",
-                "medium",
-                [second_skill.lower(), "decision", "data", "trade-off"],
-                "Evidence-backed confidence",
-            ),
-            (
-                "Choose one achievement from your resume and explain what would have failed if you were not in the team.",
-                "medium",
-                ["ownership", "critical contribution", "outcome", "specific example"],
-                "Ownership authenticity",
-            ),
-            (
-                "Which resume claim best demonstrates your readiness for this role, and how can we verify it through your work artifacts or references?",
-                "easy",
-                ["confidence", "proof", "evidence", "credibility"],
-                "Confidence with proof",
-            ),
+        resume_templates = [
+            "Your resume mentions {topic}. Explain one project where you applied it deeply, the key design decisions you made, and measurable business impact.",
+            "You listed experience in {topic}. Describe a difficult bug or failure you handled and how your approach improved the final outcome.",
+            "From your resume, pick the strongest {topic} example and explain your exact contribution versus team contribution.",
+            "You claim proficiency in {topic}. If we review your code/work artifacts, what concrete signals should we see?",
         ]
+        resume_pool = []
+        for idx, topic in enumerate((skills or topics)[:6]):
+            template = resume_templates[idx % len(resume_templates)]
+            resume_pool.append(
+                (
+                    template.format(topic=topic),
+                    "medium",
+                    [topic.lower(), "ownership", "impact", "decision"],
+                    f"Resume authenticity for {topic}",
+                )
+            )
 
+        communication_topic = topics[0] if topics else role
+        culture_topic = topics[1] if len(topics) > 1 else "team collaboration"
         core_pool = [
             (
-                "Describe a time you received difficult feedback. What changed in your behavior afterward?",
-                "behavioral",
-                "easy",
-                ["self-awareness", "adaptability", "learning"],
-                "Growth mindset",
+                f"How would you explain a complex {communication_topic} trade-off to a non-technical stakeholder in under two minutes?",
+                "communication",
+                "medium",
+                ["clarity", "stakeholder", "trade-off", "communication"],
+                "Communication under technical constraints",
             ),
             (
-                f"What does excellent performance look like for this {role} role in the first 90 days?",
+                f"Describe a time your team values were tested while working on {culture_topic}. What did you do and what did you learn?",
+                "culture-fit",
+                "easy",
+                ["values", "ownership", "collaboration", "learning"],
+                "Culture alignment and behavior",
+            ),
+            (
+                f"What does strong performance in the first 90 days look like for this {role} role, based on recruiter priorities?",
                 "role-specific",
                 "medium",
-                ["outcomes", "priorities", "execution", "impact"],
+                ["outcomes", "execution", "impact", "priorities"],
                 "Role clarity",
             ),
             (
-                "How do you handle disagreement with your manager when timelines and quality expectations conflict?",
-                "communication",
-                "medium",
-                ["communication", "negotiation", "quality", "timeline"],
-                "Professional communication",
-            ),
-            (
-                f"Based on this HR expectation brief: {hr_prompt[:160] or 'high ownership and collaboration'}, which part will be easiest for you and which part needs deliberate effort?",
-                "culture-fit",
-                "medium",
-                ["self-assessment", "ownership", "collaboration", "honesty"],
-                "HR expectation alignment",
+                "Tell me about difficult feedback you received and how your working style changed afterward.",
+                "behavioral",
+                "easy",
+                ["self-awareness", "adaptability", "growth"],
+                "Behavioral maturity",
             ),
         ]
 
@@ -325,7 +383,7 @@ class GroqService:
             )
             qid += 1
 
-        return questions[:total_questions]
+        return self._unique_question_items(questions, total_questions)
 
     def generate_questions(
         self,
@@ -341,19 +399,23 @@ class GroqService:
         total = max(8, min(12, total_questions))
         scenario_target, resume_target = self._target_counts(total, scenario_percentage, resume_validation_percentage)
 
-        prompt = f'''You are a senior enterprise HR interviewer designing an industry-ready HR round.
+        topics = self._extract_topics(hr_prompt, role, skills)
+
+        prompt = f'''You are a senior technical interviewer designing a round-3 technical interview.
 
 Role: {role}
 Resume summary: {resume_summary}
 Resume skills: {skills}
 HR expectation brief: {hr_prompt or 'Evaluate ownership, communication, problem solving, and culture fit.'}
+    Recruiter priority topics: {topics}
 
 Generate exactly {total} interview questions and return only valid JSON array.
 Mandatory constraints:
 - Exactly {scenario_target} questions must be type "scenario-based".
 - Exactly {resume_target} questions must be type "resume-validation" to verify confidence and authenticity of resume claims.
 - Remaining questions should be distributed across: behavioral, communication, leadership, culture-fit, role-specific.
-- Each question must be practical, realistic, and suitable for an HR round in product/service companies.
+    - At least 60% of questions must explicitly reference recruiter priority topics or resume skills.
+    - Include technical depth and practical trade-offs, while keeping some communication and culture-fit evaluation.
 - Avoid duplicate questions.
 
 Return format:
@@ -395,10 +457,83 @@ Return format:
                 )
 
             parsed = [q for q in parsed if q.question]
-            if len(parsed) < total or scenario_count < scenario_target or resume_count < resume_target:
-                raise ValueError("Question distribution did not satisfy required percentages")
+            if parsed:
+                rebalance_pool = self._fallback_questions(
+                    role=role,
+                    resume_summary=resume_summary,
+                    resume_skills=skills,
+                    hr_prompt=hr_prompt,
+                    total_questions=total,
+                    scenario_target=scenario_target,
+                    resume_target=resume_target,
+                )
 
-            return parsed[:total]
+                # Deduplicate while preserving generated questions first.
+                unique: list[QuestionItem] = []
+                seen_questions: set[str] = set()
+                for q in parsed:
+                    key = q.question.strip().lower()
+                    if not key or key in seen_questions:
+                        continue
+                    seen_questions.add(key)
+                    unique.append(q)
+
+                scenario_count = sum(1 for q in unique if q.type == "scenario-based")
+                resume_count = sum(1 for q in unique if q.type == "resume-validation")
+
+                if scenario_count < scenario_target:
+                    for q in rebalance_pool:
+                        if q.type != "scenario-based":
+                            continue
+                        key = q.question.strip().lower()
+                        if key in seen_questions:
+                            continue
+                        unique.append(q)
+                        seen_questions.add(key)
+                        scenario_count += 1
+                        if scenario_count >= scenario_target:
+                            break
+
+                if resume_count < resume_target:
+                    for q in rebalance_pool:
+                        if q.type != "resume-validation":
+                            continue
+                        key = q.question.strip().lower()
+                        if key in seen_questions:
+                            continue
+                        unique.append(q)
+                        seen_questions.add(key)
+                        resume_count += 1
+                        if resume_count >= resume_target:
+                            break
+
+                for q in rebalance_pool:
+                    if len(unique) >= total:
+                        break
+                    key = q.question.strip().lower()
+                    if key in seen_questions:
+                        continue
+                    unique.append(q)
+                    seen_questions.add(key)
+
+                normalized: list[QuestionItem] = []
+                for idx, q in enumerate(unique[:total], start=1):
+                    normalized.append(
+                        QuestionItem(
+                            id=f"q{idx}",
+                            question=q.question,
+                            type=self._normalize_type(q.type),
+                            difficulty=(q.difficulty or "medium").lower(),
+                            expected_keywords=q.expected_keywords,
+                            expected_answer=q.expected_answer,
+                            rubric=q.rubric,
+                            assessment_focus=q.assessment_focus,
+                        )
+                    )
+
+                return self._unique_question_items(normalized, total)
+
+            raise ValueError("No usable questions produced by model")
         except Exception:
             return self._fallback_questions(
                 role=role,

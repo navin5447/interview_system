@@ -70,6 +70,14 @@ function splitForClearSpeech(text: string) {
   return segments.length ? segments : [text];
 }
 
+function toRollingWords(text: string, maxWords = 18) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) return "";
+  const words = normalized.split(" ");
+  if (words.length <= maxWords) return normalized;
+  return words.slice(words.length - maxWords).join(" ");
+}
+
 function pickInterviewVoice(voices: SpeechSynthesisVoice[]) {
   const preferred = [
     "Google US English",
@@ -372,7 +380,7 @@ export default function InterviewPage() {
     recognition.lang = "en-US";
 
     speechFinalRef.current = speechMapRef.current[question.id] || "";
-    setLiveSubtitle(speechFinalRef.current);
+    setLiveSubtitle(toRollingWords(speechFinalRef.current));
 
     recognition.onresult = (event: any) => {
       let interim = "";
@@ -387,17 +395,17 @@ export default function InterviewPage() {
 
       const caption = `${speechFinalRef.current} ${interim}`.trim();
       if (caption) {
-        setLiveSubtitle(caption);
+        setLiveSubtitle(toRollingWords(caption));
       }
     };
 
     recognition.onerror = () => {
-      setLiveSubtitle(speechFinalRef.current || "");
+      setLiveSubtitle(toRollingWords(speechFinalRef.current || ""));
     };
 
     recognition.onend = () => {
       speechMapRef.current[question.id] = speechFinalRef.current.trim();
-      setLiveSubtitle(speechFinalRef.current || "");
+      setLiveSubtitle(toRollingWords(speechFinalRef.current || ""));
     };
 
     try {
@@ -422,7 +430,7 @@ export default function InterviewPage() {
 
       recognition.onend = () => {
         speechMapRef.current[question.id] = speechFinalRef.current.trim();
-        setLiveSubtitle(speechFinalRef.current || "");
+        setLiveSubtitle(toRollingWords(speechFinalRef.current || ""));
         finalize();
       };
 
@@ -629,8 +637,7 @@ export default function InterviewPage() {
     if (!evaluatedMapRef.current[question.id]) {
       const ok = await submitEvaluation(true);
       if (!ok) {
-        setStatus("Please retry evaluation before moving to next question.");
-        return;
+        setStatus("Network was slow during evaluation. Moving to next question; scoring will be completed later.");
       }
     }
 
@@ -894,7 +901,7 @@ export default function InterviewPage() {
         <p className="mt-3 text-black/80">{question.question}</p>
 
         <h3 className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-ink/50">Live Transcript</h3>
-        <p className="mt-2 min-h-16 rounded-xl border border-ink/10 bg-white p-3 text-sm">{currentTranscript || "Waiting for candidate response..."}</p>
+        <p className="mt-2 min-h-16 rounded-xl border border-ink/10 bg-white p-3 text-sm">{currentTranscript || liveSubtitle || "Waiting for candidate response..."}</p>
 
         {followUp && (
           <div className="mt-4 rounded-xl bg-pale p-3">

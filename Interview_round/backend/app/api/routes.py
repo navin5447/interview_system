@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from app.core.config import settings
-from app.models.schemas import AnalyzeFrameRequest, EndSessionRequest, EvaluateRequest, EvaluateResponse, StartSessionRequest
+from app.models.schemas import AnalyzeFrameRequest, EndSessionRequest, EvaluateRequest, EvaluateResponse, ResumeParsedData, StartSessionRequest
 from app.services.claude_service import groq_service
 from app.services.emotion_service import analyze_frame
 from app.services.report_service import build_report
@@ -51,7 +51,24 @@ async def upload_resume(file: UploadFile = File(...)):
 
 @router.post("/start-session")
 async def start_session(payload: StartSessionRequest):
-    resume = get_resume(payload.resume_id)
+    summary = (payload.resume_summary or "").strip()
+    raw_text = (payload.resume_raw_text or "").strip()
+    inline_skills = [str(skill).strip() for skill in (payload.resume_skills or []) if str(skill).strip()]
+
+    resume_id = payload.resume_id
+    if summary or raw_text or inline_skills:
+        inline_resume = ResumeParsedData(
+            name="Candidate",
+            summary=(summary or raw_text or "Candidate resume context provided by SmartRecruit")[:2500],
+            skills=inline_skills[:20],
+            experience_years=None,
+            raw_text=(raw_text or summary or "Candidate resume context provided by SmartRecruit")[:8000],
+        )
+        resume_id = save_resume(f"{payload.resume_id}_context.pdf", inline_resume)
+        resume = inline_resume
+    else:
+        resume = get_resume(payload.resume_id)
+
     questions = groq_service.generate_questions(
         role=payload.role,
         resume_summary=resume.summary,
@@ -62,7 +79,7 @@ async def start_session(payload: StartSessionRequest):
         total_questions=payload.total_questions,
     )
     session_id = create_session(
-        payload.resume_id,
+        resume_id,
         payload.role,
         questions,
         hr_prompt=payload.hr_prompt,

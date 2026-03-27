@@ -14,6 +14,12 @@ function HomePageContent() {
   const candidateName = searchParams.get("candidate_name");
   const jobTitle = searchParams.get("job_title");
   const proxyRound = searchParams.get("proxy_round") || "technical";
+  const recruiterPrompt = searchParams.get("hr_prompt") || "";
+  const resumeSummary = searchParams.get("resume_summary") || "";
+  const resumeSkillsParam = searchParams.get("resume_skills") || "";
+  const totalQuestionsParam = Number(searchParams.get("total_questions") || "10");
+  const scenarioPctParam = Number(searchParams.get("scenario_percentage") || "35");
+  const resumeValidationPctParam = Number(searchParams.get("resume_validation_percentage") || "25");
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -48,13 +54,30 @@ function HomePageContent() {
     setLoading(true);
     setError("");
     try {
+      const clampPercent = (value: number, fallback: number) => {
+        if (!Number.isFinite(value)) return fallback;
+        return Math.max(0, Math.min(100, Math.round(value)));
+      };
+
+      const safeTotalQuestions = Number.isFinite(totalQuestionsParam)
+        ? Math.max(8, Math.min(12, Math.round(totalQuestionsParam)))
+        : 10;
+
+      const parsedResumeSkills = resumeSkillsParam
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .slice(0, 12);
+
       // Use default recruiter-configured settings for this round
       const defaultSettings = {
         role: jobTitle || "Technical Role",
-        hrPrompt: "Evaluate technical competency, communication, problem-solving, and cultural alignment.",
-        scenarioPercentage: 35,
-        resumeValidationPercentage: 25,
-        totalQuestions: 10,
+        hrPrompt:
+          recruiterPrompt ||
+          "Evaluate technical competency, communication, problem-solving, and cultural alignment.",
+        scenarioPercentage: clampPercent(scenarioPctParam, 35),
+        resumeValidationPercentage: clampPercent(resumeValidationPctParam, 25),
+        totalQuestions: safeTotalQuestions,
       };
 
       // Create a mock resume object since resume is already in the application
@@ -67,6 +90,9 @@ function HomePageContent() {
         scenarioPercentage: defaultSettings.scenarioPercentage,
         resumeValidationPercentage: defaultSettings.resumeValidationPercentage,
         totalQuestions: defaultSettings.totalQuestions,
+        resumeSummary,
+        resumeSkills: parsedResumeSkills,
+        resumeRawText: resumeSummary,
       });
 
       localStorage.setItem(

@@ -14,6 +14,8 @@ import re
 import urllib.error
 import urllib.request
 from urllib.parse import urlencode
+import base64
+import shutil
 
 
 from . import db, applications_collection
@@ -29,6 +31,7 @@ from .models import (
     RoundEvaluation,
     ApplicantPipelineState,
     MCQRoundAssignment,
+    FaceCapture,
 )
 from .pipeline import (
     build_funnel_summary,
@@ -46,6 +49,8 @@ from .utils import allowed_file, evaluate_cv, extract_score, generate_interview_
 
 main = Blueprint('main', __name__)
 
+REQUIRED_FACE_ANGLES = ('front', 'left', 'right')
+
 
 def _default_technical_round_url() -> str:
     configured = str(current_app.config.get('TECHNICAL_ROUND_URL', 'http://127.0.0.1:3000/')).strip()
@@ -55,6 +60,86 @@ def _default_technical_round_url() -> str:
 def _default_coding_round_url() -> str:
     configured = str(current_app.config.get('CODING_ROUND_URL', 'http://127.0.0.1:5173/')).strip()
     return configured or 'http://127.0.0.1:5173/'
+
+
+def _decode_data_url_image(image_data: str) -> bytes:
+    if not image_data or ',' not in image_data:
+        raise ValueError('Invalid image payload')
+
+    header, encoded = image_data.split(',', 1)
+    if not header.lower().startswith('data:image/'):
+        raise ValueError('Only image data is supported')
+
+    try:
+        decoded = base64.b64decode(encoded, validate=True)
+    except Exception as exc:
+        raise ValueError('Failed to decode image data') from exc
+
+    if not decoded:
+        raise ValueError('Empty image payload')
+
+    max_bytes = 4 * 1024 * 1024
+    if len(decoded) > max_bytes:
+        raise ValueError('Image payload is too large')
+
+    return decoded
+
+
+def _normalize_relative_path(path: str) -> str:
+    return path.replace('\\', '/').strip('/').strip()
+
+
+def _is_safe_face_ref(face_ref: str, user_id: int, job_id: int) -> bool:
+    normalized = _normalize_relative_path(face_ref)
+    expected_prefix = f"face_capture/temp/user_{user_id}/job_{job_id}/"
+    if not normalized.startswith(expected_prefix):
+        return False
+    return normalized.endswith('.jpg') or normalized.endswith('.jpeg') or normalized.endswith('.png')
+
+
+def _persist_face_capture_images(*, user_id: int, job_id: int, application_id: int, face_refs: dict[str, str]) -> dict[str, str]:
+    photos_root = current_app.config['UPLOAD_FOLDER_PHOTOS']
+    app_rel_dir = f"face_capture/applications/app_{application_id}"
+    app_abs_dir = os.path.join(photos_root, app_rel_dir.replace('/', os.sep))
+    os.makedirs(app_abs_dir, exist_ok=True)
+
+    persisted: dict[str, str] = {}
+    for angle, face_ref in face_refs.items():
+        normalized_ref = _normalize_relative_path(face_ref)
+        src_abs = os.path.join(photos_root, normalized_ref.replace('/', os.sep))
+        if not os.path.isfile(src_abs):
+            raise ValueError(f'Missing uploaded face image for {angle}.')
+
+        ext = os.path.splitext(src_abs)[1].lower()
+        if ext not in {'.jpg', '.jpeg', '.png'}:
+            ext = '.jpg'
+
+        target_name = f"{angle}{ext}"
+        rel_target = f"{app_rel_dir}/{target_name}"
+        abs_target = os.path.join(photos_root, rel_target.replace('/', os.sep))
+
+        try:
+            os.replace(src_abs, abs_target)
+        except OSError:
+            shutil.copy2(src_abs, abs_target)
+            os.remove(src_abs)
+
+        persisted[angle] = rel_target.replace('\\', '/')
+
+    temp_dir = os.path.join(
+        photos_root,
+        'face_capture',
+        'temp',
+        f'user_{user_id}',
+        f'job_{job_id}',
+    )
+    if os.path.isdir(temp_dir):
+        try:
+            shutil.rmtree(temp_dir)
+        except OSError:
+            pass
+
+    return persisted
 
 
 def mongo_find_one(query):
@@ -864,6 +949,35 @@ def apply(job_id):
         flash('Could not determine resume path.', 'danger')
         return redirect(request.url)
 
+    face_front_ref = request.form.get('face_front_ref', '').strip()
+    face_left_ref = request.form.get('face_left_ref', '').strip()
+    face_right_ref = request.form.get('face_right_ref', '').strip()
+    face_tilt_ref = request.form.get('face_tilt_ref', '').strip()
+
+    face_refs = {
+        'front': face_front_ref,
+        'left': face_left_ref,
+        'right': face_right_ref,
+    }
+
+    missing_angles = [angle for angle, value in face_refs.items() if not value]
+    if missing_angles:
+        flash('Please complete face capture (front, left, right) before submitting.', 'danger')
+        return redirect(request.url)
+
+    for angle, face_ref in face_refs.items():
+        if not _is_safe_face_ref(face_ref, g.user.id, job_id):
+            flash(f'Invalid {angle} face capture reference. Please capture again.', 'danger')
+            return redirect(request.url)
+
+        abs_face_path = os.path.join(current_app.config['UPLOAD_FOLDER_PHOTOS'], _normalize_relative_path(face_ref).replace('/', os.sep))
+        if not os.path.isfile(abs_face_path):
+            flash(f'Missing {angle} face image. Please capture again.', 'danger')
+            return redirect(request.url)
+
+    if face_tilt_ref and not _is_safe_face_ref(face_tilt_ref, g.user.id, job_id):
+        face_tilt_ref = ''
+
     try:
         parsed_resume = parse_resume_to_json(cv_path)
     except Exception as e:
@@ -898,6 +1012,36 @@ def apply(job_id):
         parsed_resume=parsed_resume,
     )
     db.session.add(ats_row)
+
+    try:
+        refs_to_persist = dict(face_refs)
+        if face_tilt_ref and _is_safe_face_ref(face_tilt_ref, g.user.id, job_id):
+            refs_to_persist['tilt'] = face_tilt_ref
+
+        persisted_paths = _persist_face_capture_images(
+            user_id=g.user.id,
+            job_id=job_id,
+            application_id=new_application.id,
+            face_refs=refs_to_persist,
+        )
+
+        db.session.add(
+            FaceCapture(
+                application_id=new_application.id,
+                candidate_id=g.user.id,
+                job_id=job_id,
+                front_image_path=persisted_paths['front'],
+                left_image_path=persisted_paths['left'],
+                right_image_path=persisted_paths['right'],
+                tilt_image_path=persisted_paths.get('tilt'),
+            )
+        )
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Failed to persist face capture data: {e}")
+        flash('Face capture upload failed. Please retry your application.', 'danger')
+        return redirect(request.url)
+
     upsert_pipeline_state(new_application, 'ATS_SCORED')
     send_acknowledgement_email(g.user, job, config)
 
@@ -928,6 +1072,43 @@ def apply(job_id):
 
     flash('Application submitted and ATS scored successfully!', 'success')
     return redirect(url_for('main.view_applications'))
+
+
+@main.route('/api/face-capture/upload', methods=['POST'])
+@role_required('applicant', 'both')
+def upload_face_capture():
+    payload = request.get_json(silent=True) or {}
+
+    angle = str(payload.get('angle', '')).strip().lower()
+    if angle not in (*REQUIRED_FACE_ANGLES, 'tilt'):
+        return jsonify({'ok': False, 'error': 'Invalid face angle'}), 400
+
+    try:
+        job_id = int(payload.get('job_id'))
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'error': 'Invalid job id'}), 400
+
+    job = Job.query.get(job_id)
+    if job is None:
+        return jsonify({'ok': False, 'error': 'Job not found'}), 404
+
+    image_data = str(payload.get('image_data', '')).strip()
+    try:
+        image_bytes = _decode_data_url_image(image_data)
+    except ValueError as exc:
+        return jsonify({'ok': False, 'error': str(exc)}), 400
+
+    rel_dir = f"face_capture/temp/user_{g.user.id}/job_{job_id}"
+    abs_dir = os.path.join(current_app.config['UPLOAD_FOLDER_PHOTOS'], rel_dir.replace('/', os.sep))
+    os.makedirs(abs_dir, exist_ok=True)
+
+    rel_path = f"{rel_dir}/{angle}.jpg"
+    abs_path = os.path.join(current_app.config['UPLOAD_FOLDER_PHOTOS'], rel_path.replace('/', os.sep))
+
+    with open(abs_path, 'wb') as image_file:
+        image_file.write(image_bytes)
+
+    return jsonify({'ok': True, 'angle': angle, 'face_ref': rel_path.replace('\\', '/')})
 
 @main.route('/interview_questions', methods=['GET', 'POST'])
 @role_required('applicant', 'both')
@@ -1338,6 +1519,38 @@ def start_interview_round(application_id, round_number):
         flash(f"Round {round_number} is available only during the schedule window: {round_config.schedule_window}", 'danger')
         return redirect(url_for('main.view_applications'))
 
+    ats_row = ATSResult.query.filter_by(application_id=application.id).first()
+    parsed_resume = ats_row.parsed_resume if ats_row and isinstance(ats_row.parsed_resume, dict) else {}
+
+    focus_items = [str(item).strip() for item in (round_config.focus_areas or []) if str(item).strip()]
+    rubric_items = [str(item).strip() for item in (round_config.evaluation_rubric or []) if str(item).strip()]
+
+    resume_summary = str(
+        parsed_resume.get('summary')
+        or parsed_resume.get('experience_summary')
+        or parsed_resume.get('raw_text')
+        or ''
+    ).strip()
+    resume_summary = resume_summary[:1800]
+
+    raw_skills = parsed_resume.get('skills') or parsed_resume.get('technical_skills') or []
+    if isinstance(raw_skills, str):
+        resume_skills = [item.strip() for item in re.split(r',|;', raw_skills) if item.strip()]
+    elif isinstance(raw_skills, list):
+        resume_skills = [str(item).strip() for item in raw_skills if str(item).strip()]
+    else:
+        resume_skills = []
+    resume_skills = resume_skills[:10]
+
+    hr_prompt_parts = [
+        f"Technical interview for role: {job.title}.",
+        f"Recruiter focus topics: {', '.join(focus_items) if focus_items else 'Problem solving, system thinking, role depth'}.",
+        f"Evaluation rubric priorities: {', '.join(rubric_items) if rubric_items else 'Communication, technical depth, culture fit'}.",
+        "Generate practical technical questions grounded in recruiter topics and candidate resume context.",
+        "Keep some communication and culture-fit questions in the set.",
+    ]
+    hr_prompt = ' '.join(hr_prompt_parts)
+
     interview_url = 'http://127.0.0.1:3000/'
     query = urlencode(
         {
@@ -1347,6 +1560,12 @@ def start_interview_round(application_id, round_number):
             'proxy_round': 'technical',
             'candidate_name': f"{g.user.first_name} {g.user.last_name}",
             'job_title': job.title,
+            'hr_prompt': hr_prompt,
+            'resume_summary': resume_summary,
+            'resume_skills': ', '.join(resume_skills),
+            'total_questions': 10,
+            'scenario_percentage': 35,
+            'resume_validation_percentage': 25,
         }
     )
     separator = '&' if '?' in interview_url else '?'

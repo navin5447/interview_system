@@ -27,6 +27,9 @@ class StartSessionRequest(BaseModel):
     resume_id: str
     role: str
     hr_prompt: str = ""
+    resume_summary: str = ""
+    resume_skills: list[str] = Field(default_factory=list)
+    resume_raw_text: str = ""
     scenario_percentage: int = Field(default=35, ge=0, le=100)
     resume_validation_percentage: int = Field(default=25, ge=0, le=100)
     total_questions: int = Field(default=10, ge=8, le=12)
