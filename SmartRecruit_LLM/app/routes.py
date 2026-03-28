@@ -42,6 +42,7 @@ from .pipeline import (
     run_shortlisting,
     score_resume_against_job,
     send_acknowledgement_email,
+    send_custom_shortlisted_email_to_all,
     should_auto_shortlist,
     upsert_pipeline_state,
 )
@@ -1206,6 +1207,39 @@ def run_shortlisting_now(job_id):
     return redirect(url_for('main.view_candidates', job_id=job.id))
 
 
+@main.route('/job/<int:job_id>/send-custom-shortlisted-email', methods=['POST'])
+@role_required('recruiter', 'both')
+def send_custom_shortlisted_email(job_id):
+    job = Job.query.get_or_404(job_id)
+    if job.user_id != g.user.id:
+        abort(403)
+
+    config = JobConfig.query.filter_by(job_id=job.id, confirmed=True).first()
+    if config is None:
+        flash('Job configuration not found.', 'danger')
+        return redirect(url_for('main.view_candidates', job_id=job.id))
+
+    subject_template = (request.form.get('email_subject') or '').strip()
+    body_template = (request.form.get('email_body') or '').strip()
+    if not subject_template or not body_template:
+        flash('Email subject and body are required for custom shortlist email.', 'danger')
+        return redirect(url_for('main.view_candidates', job_id=job.id))
+
+    stats = send_custom_shortlisted_email_to_all(
+        job=job,
+        config=config,
+        subject_template=subject_template,
+        body_template=body_template,
+    )
+    db.session.commit()
+
+    flash(
+        f"Custom shortlist email sent to {stats['sent']} candidates (total shortlisted: {stats['total_shortlisted']}, skipped: {stats['skipped']}).",
+        'success'
+    )
+    return redirect(url_for('main.view_candidates', job_id=job.id))
+
+
 @main.route('/job/<int:job_id>/complete_round/<int:round_number>', methods=['POST'])
 @role_required('recruiter', 'both')
 def complete_round(job_id, round_number):
@@ -1563,7 +1597,7 @@ def start_interview_round(application_id, round_number):
             'hr_prompt': hr_prompt,
             'resume_summary': resume_summary,
             'resume_skills': ', '.join(resume_skills),
-            'total_questions': 10,
+            'total_questions': 5,
             'scenario_percentage': 35,
             'resume_validation_percentage': 25,
         }

@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 import random
 import re
 import smtplib
@@ -635,6 +636,66 @@ def send_shortlisted_email_now(*, applicant: User, job: Job, config: JobConfig, 
     )
 
 
+def _render_email_template(template: str, replacements: dict[str, str]) -> str:
+    rendered = template or ""
+    for key, value in replacements.items():
+        rendered = rendered.replace(f"{{{key}}}", value)
+    return rendered
+
+
+def send_custom_shortlisted_email_to_all(
+    *,
+    job: Job,
+    config: JobConfig,
+    subject_template: str,
+    body_template: str,
+) -> dict[str, int]:
+    shortlisted_apps = Application.query.filter(
+        Application.job_id == job.id,
+        Application.status.in_(['Shortlisted', 'Advanced'])
+    ).all()
+
+    sent_count = 0
+    skipped_count = 0
+    for app in shortlisted_apps:
+        applicant = User.query.get(app.user_id)
+        if applicant is None:
+            skipped_count += 1
+            continue
+
+        replacements = {
+            'first_name': applicant.first_name,
+            'last_name': applicant.last_name,
+            'full_name': f"{applicant.first_name} {applicant.last_name}".strip(),
+            'job_title': job.title,
+            'company_name': config.company_display_name,
+            'application_id': str(app.id),
+        }
+
+        subject = _render_email_template(subject_template, replacements).strip()
+        body = _render_email_template(body_template, replacements).strip()
+        if not subject or not body:
+            skipped_count += 1
+            continue
+
+        dispatch_email(
+            applicant=applicant,
+            job=job,
+            application_id=app.id,
+            event_type='SHORTLISTED_CUSTOM',
+            subject=subject,
+            body=body,
+            reply_to=config.reply_to_email,
+        )
+        sent_count += 1
+
+    return {
+        'total_shortlisted': len(shortlisted_apps),
+        'sent': sent_count,
+        'skipped': skipped_count,
+    }
+
+
 def ensure_shortlisted_email_delivery(*, job: Job, config: JobConfig) -> dict[str, int]:
     shortlisted_apps = Application.query.filter_by(job_id=job.id, status='Shortlisted').all()
     sent_count = 0
@@ -771,8 +832,32 @@ def run_shortlisting(job: Job, config: JobConfig) -> dict[str, Any]:
         return {"received": len(applications), "shortlisted": 0, "rejected": len(applications), "ties_included": False}
 
     ranked = sorted(ats_rows, key=lambda item: item.ats_score, reverse=True)
-    shortlisted = ranked[:10]
+
+    # Rank by ATS directly for shortlist selection.
+    # Threshold and mandatory filter checks are not used for shortlist cutoff.
+    eligible_rows: list[ATSResult] = ranked
+    threshold = float(config.min_ats_threshold)
+
+    shortlist_mode = (config.shortlist_mode or 'count').strip().lower()
+    shortlist_value = float(config.shortlist_value or 0)
+    target_count = 0
+    if eligible_rows:
+        if shortlist_mode == 'percentage':
+            target_count = int(math.ceil((shortlist_value / 100.0) * len(eligible_rows)))
+        else:
+            target_count = int(round(shortlist_value))
+        target_count = max(0, min(target_count, len(eligible_rows)))
+
+    shortlisted = eligible_rows[:target_count] if target_count > 0 else []
     ties_included = False
+
+    # Include ties on the ATS cutoff when possible.
+    if target_count > 0 and target_count < len(eligible_rows):
+        cutoff_score = float(shortlisted[-1].ats_score)
+        tied_rows = [row for row in eligible_rows[target_count:] if float(row.ats_score) == cutoff_score]
+        if tied_rows:
+            shortlisted.extend(tied_rows)
+            ties_included = True
 
     shortlisted_ids = {item.application_id for item in shortlisted}
 
@@ -785,6 +870,13 @@ def run_shortlisting(job: Job, config: JobConfig) -> dict[str, Any]:
         if row.application_id in shortlisted_ids:
             app.status = "Shortlisted"
             upsert_pipeline_state(app, "SHORTLISTED")
+            if float(row.ats_score) < threshold:
+                row.shortlist_reason = (
+                    "Shortlisted by top ATS ranking (threshold ignored for ranking); "
+                    f"score {row.ats_score:.2f} is below threshold {threshold:.2f}"
+                )
+            else:
+                row.shortlist_reason = "Shortlisted by top ATS ranking"
 
             first_round = InterviewRoundConfig.query.filter_by(job_id=job.id, round_number=1).first()
             if first_round is not None:
@@ -799,6 +891,7 @@ def run_shortlisting(job: Job, config: JobConfig) -> dict[str, Any]:
         else:
             app.status = "Rejected"
             upsert_pipeline_state(app, "REJECTED")
+            row.shortlist_reason = "Not selected in top ATS ranking"
 
             if config.send_rejection_emails:
                 subject = f"Update on your application - {job.title} at {config.company_display_name}"

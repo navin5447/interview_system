@@ -12,19 +12,65 @@ class GroqService:
     def __init__(self) -> None:
         self.client = Groq(api_key=settings.groq_api_key) if settings.groq_api_key else None
 
-    def _call(self, prompt: str, max_tokens: int = 500, temperature: float = 0.3) -> str:
+    def _call(
+        self,
+        prompt: str,
+        max_tokens: int = 500,
+        temperature: float = 0.3,
+        system_prompt: str | None = None,
+    ) -> str:
         if not self.client:
             raise RuntimeError("GROQ_API_KEY is not configured")
+
+        messages: list[dict[str, str]] = []
+        if system_prompt and system_prompt.strip():
+            messages.append({"role": "system", "content": system_prompt.strip()})
+        messages.append({"role": "user", "content": prompt})
 
         response = self.client.chat.completions.create(
             model=settings.groq_model,
             max_tokens=max_tokens,
             temperature=temperature,
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages,
         )
 
         message = response.choices[0].message.content if response.choices else ""
         return message or ""
+
+    @staticmethod
+    def _build_hr_interviewer_system_prompt(
+        candidate_name: str,
+        job_role: str,
+        resume_summary: str,
+        interview_stage: str,
+        conversation_history: list[dict[str, str]] | None,
+    ) -> str:
+        history = conversation_history or []
+        compact_history = []
+        for item in history[-8:]:
+            role = str(item.get("role", "")).strip() if isinstance(item, dict) else ""
+            text = str(item.get("text", "")).strip() if isinstance(item, dict) else ""
+            if role and text:
+                compact_history.append(f"{role}: {text}")
+
+        history_blob = "\n".join(compact_history) if compact_history else "(none)"
+        return (
+            "You are an experienced HR interviewer conducting a professional, human-like, adaptive interview.\n"
+            "Behavior requirements:\n"
+            "- Ask one question per turn, acknowledge candidate briefly, then ask next question.\n"
+            "- Use four pillars: role-specific, resume-driven, answer-derived follow-up, scenario-based.\n"
+            "- Do not overuse one pillar more than two times consecutively.\n"
+            "- Include communication and culture-fit probing naturally.\n"
+            "- Probe vague answers, challenge strong claims with realistic constraints, and ask concrete examples.\n"
+            "- Maintain warm, professional tone; never robotic.\n"
+            "Session context:\n"
+            f"Candidate name: {candidate_name or 'Candidate'}\n"
+            f"Job role: {job_role}\n"
+            f"Interview stage: {interview_stage}\n"
+            f"Resume summary context: {resume_summary[:2500]}\n"
+            f"Conversation history:\n{history_blob}\n"
+            "When user prompt asks for JSON output, return only valid JSON with no markdown."
+        )
 
     @staticmethod
     def _extract_json(text: str) -> Any:
@@ -42,7 +88,7 @@ class GroqService:
 
     @staticmethod
     def _target_counts(total_questions: int, scenario_percentage: int, resume_validation_percentage: int) -> tuple[int, int]:
-        total = max(8, min(12, total_questions))
+        total = max(5, min(5, total_questions))
         scenario_target = max(1, int(round(total * (scenario_percentage / 100))))
         resume_target = max(1, int(round(total * (resume_validation_percentage / 100))))
 
@@ -60,6 +106,8 @@ class GroqService:
         value = (raw or "").strip().lower()
         if "scenario" in value:
             return "scenario-based"
+        if "follow" in value:
+            return "communication"
         if "resume" in value or "validation" in value or "confidence" in value:
             return "resume-validation"
         if "behavior" in value:
@@ -146,6 +194,228 @@ class GroqService:
                 )
             )
         return normalized
+
+    @staticmethod
+    def _extract_answer_hooks(answer_text: str, max_hooks: int = 2) -> list[str]:
+        text = re.sub(r"\s+", " ", (answer_text or "").strip())
+        if not text:
+            return []
+
+        sentences = [s.strip(" .") for s in re.split(r"[\.!?]", text) if s.strip()]
+        hooks: list[str] = []
+        for sentence in sentences:
+            if len(sentence.split()) >= 6:
+                hooks.append(sentence[:140])
+            if len(hooks) >= max_hooks:
+                break
+
+        if not hooks and text:
+            hooks.append(text[:140])
+        return hooks[:max_hooks]
+
+    @staticmethod
+    def _select_next_pillar(history: list[dict[str, Any]], total_questions: int, question_number: int) -> str:
+        if total_questions <= 5:
+            plan = ["role", "resume", "follow_up", "scenario", "role"]
+            idx = max(1, min(question_number, len(plan))) - 1
+            return plan[idx]
+
+        # Target ratio: role 25%, resume 30%, follow_up 30%, scenario 15%
+        order = ["role", "resume", "follow_up", "scenario"]
+        target = {"role": 0.25, "resume": 0.30, "follow_up": 0.30, "scenario": 0.15}
+        if not history:
+            return "role"
+
+        recent = [str(item.get("pillar", "")).strip().lower() for item in history if isinstance(item, dict)]
+        counts = {k: 0 for k in order}
+        for item in recent:
+            if item in counts:
+                counts[item] += 1
+
+        # Avoid more than two consecutive uses of same pillar.
+        if len(recent) >= 2 and recent[-1] == recent[-2] and recent[-1] in order:
+            candidates = [k for k in order if k != recent[-1]]
+        else:
+            candidates = order
+
+        total = max(1, sum(counts.values()))
+        best = candidates[0]
+        best_gap = -10.0
+        for pillar in candidates:
+            current_ratio = counts[pillar] / total
+            gap = target[pillar] - current_ratio
+            if gap > best_gap:
+                best_gap = gap
+                best = pillar
+
+        return best
+
+    def generate_next_question(
+        self,
+        role: str,
+        resume_summary: str,
+        resume_skills: list[str] | None = None,
+        hr_prompt: str = "",
+        candidate_name: str = "",
+        interview_stage: str = "Technical Round",
+        conversation_history: list[dict[str, str]] | None = None,
+        asked_questions: list[dict[str, Any]] | None = None,
+        latest_answer: str = "",
+        total_questions: int = 10,
+        question_number: int = 1,
+    ) -> QuestionItem:
+        skills = resume_skills or []
+        topics = self._extract_topics(hr_prompt, role, skills)
+        history = asked_questions or []
+        total_questions = max(1, total_questions)
+        pillar = self._select_next_pillar(history, total_questions, question_number)
+        hooks = self._extract_answer_hooks(latest_answer, max_hooks=2)
+
+        asked_texts = [str(q.get("question", "")).strip() for q in history if isinstance(q, dict)]
+        asked_blob = "\n".join([f"- {item}" for item in asked_texts[-10:]]) if asked_texts else "(none)"
+        hooks_blob = ", ".join(hooks) if hooks else "(none)"
+
+        prompt = f'''Generate exactly one next interview question as JSON object.
+
+Context:
+- Candidate: {candidate_name or "Candidate"}
+- Role: {role}
+- Interview stage: {interview_stage}
+- HR guidance: {hr_prompt}
+- Resume summary: {resume_summary}
+- Resume skills: {skills}
+- Recruiter topics: {topics}
+- Question number: {question_number} of {max(1, total_questions)}
+- Preferred pillar for this turn: {pillar}
+- Hooks from latest answer: {hooks_blob}
+
+Already asked questions:
+{asked_blob}
+
+Rules:
+- Ask one question only, not multi-part.
+- Must be non-duplicate relative to already asked questions.
+- If pillar is follow_up, use latest answer hooks directly and challenge/clarify realistically.
+- Keep question practical and role-specific.
+- Include communication/culture evaluation naturally when relevant.
+- For 5-question interview format, follow this blueprint:
+    - Q1 recruiter-topic focused role-specific question.
+    - Q2 resume-validation question based on candidate claims.
+    - Q3 communication-focused follow-up question.
+    - Q4 general practical scenario question.
+    - Q5 general role-fit or behavioral judgment question.
+
+Return only JSON object:
+{{
+  "question": "...",
+  "type": "role-specific|resume-validation|communication|culture-fit|behavioral|scenario-based|leadership",
+  "difficulty": "easy|medium|hard",
+  "expected_keywords": ["..."],
+  "assessment_focus": "...",
+  "pillar_used": "role|resume|follow_up|scenario"
+}}'''
+
+        system_prompt = self._build_hr_interviewer_system_prompt(
+            candidate_name=candidate_name,
+            job_role=role,
+            resume_summary=resume_summary,
+            interview_stage=interview_stage,
+            conversation_history=conversation_history,
+        )
+
+        try:
+            raw = self._extract_json(self._call(prompt, temperature=0.2, max_tokens=350, system_prompt=system_prompt))
+            if not isinstance(raw, dict):
+                raise ValueError("next question response is not a JSON object")
+
+            q_type = self._normalize_type(str(raw.get("type", "")))
+            if total_questions <= 5:
+                if question_number == 2:
+                    q_type = "resume-validation"
+                elif question_number == 3:
+                    q_type = "communication"
+                elif question_number == 4:
+                    q_type = "scenario-based"
+                elif question_number in (1, 5):
+                    if q_type not in {"role-specific", "behavioral", "culture-fit", "leadership"}:
+                        q_type = "role-specific"
+
+            question = str(raw.get("question", "")).strip()
+            if not question:
+                raise ValueError("next question text is empty")
+
+            key = re.sub(r"\s+", " ", question).strip().lower()
+            asked_keys = {re.sub(r"\s+", " ", str(item)).strip().lower() for item in asked_texts}
+            if key in asked_keys:
+                raise ValueError("next question duplicated previous question")
+
+            focus = str(raw.get("assessment_focus", "")).strip() or "Adaptive live-turn interview probing"
+            keywords = [str(k).strip().lower() for k in raw.get("expected_keywords", []) if str(k).strip()][:8]
+            return QuestionItem(
+                id=f"q{question_number}",
+                question=question,
+                type=q_type,
+                difficulty=str(raw.get("difficulty", "medium")).strip().lower() or "medium",
+                expected_keywords=keywords,
+                expected_answer=self._build_expected_answer(keywords, focus, question),
+                rubric=f"Assess {focus.lower()}: depth, clarity, ownership, and practical reasoning.",
+                assessment_focus=focus,
+            )
+        except Exception:
+            fallback = self._fallback_questions(
+                role=role,
+                resume_summary=resume_summary,
+                resume_skills=skills,
+                hr_prompt=hr_prompt,
+                total_questions=max(1, total_questions),
+                scenario_target=1,
+                resume_target=1,
+            )
+            asked_keys = {re.sub(r"\s+", " ", str(item)).strip().lower() for item in asked_texts}
+            preferred_types: list[str] = []
+            if total_questions <= 5:
+                if question_number == 2:
+                    preferred_types = ["resume-validation"]
+                elif question_number == 3:
+                    preferred_types = ["communication", "behavioral", "culture-fit"]
+                elif question_number == 4:
+                    preferred_types = ["scenario-based"]
+                else:
+                    preferred_types = ["role-specific", "behavioral", "culture-fit", "leadership"]
+
+            ordered_candidates: list[QuestionItem] = []
+            if preferred_types:
+                for p_type in preferred_types:
+                    ordered_candidates.extend([item for item in fallback if item.type == p_type])
+                ordered_candidates.extend([item for item in fallback if item.type not in preferred_types])
+            else:
+                ordered_candidates = fallback
+
+            for candidate in ordered_candidates:
+                ckey = re.sub(r"\s+", " ", candidate.question).strip().lower()
+                if ckey in asked_keys:
+                    continue
+                return QuestionItem(
+                    id=f"q{question_number}",
+                    question=candidate.question,
+                    type=candidate.type,
+                    difficulty=candidate.difficulty,
+                    expected_keywords=candidate.expected_keywords,
+                    expected_answer=candidate.expected_answer,
+                    rubric=candidate.rubric,
+                    assessment_focus=candidate.assessment_focus,
+                )
+
+            return QuestionItem(
+                id=f"q{question_number}",
+                question=f"For this {role} role, describe one recent challenge you solved and the trade-offs you made.",
+                type="role-specific",
+                difficulty="medium",
+                expected_keywords=["challenge", "trade-off", "outcome", "ownership"],
+                expected_answer="Candidate should provide a concrete challenge, explain decision trade-offs, and show measurable impact.",
+                rubric="Assess specificity, decision quality, and communication clarity.",
+                assessment_focus="Adaptive role-specific depth",
+            )
 
     @staticmethod
     def _build_expected_answer(keywords: list[str], assessment_focus: str, question: str) -> str:
@@ -394,9 +664,12 @@ class GroqService:
         scenario_percentage: int = 35,
         resume_validation_percentage: int = 25,
         total_questions: int = 10,
+        candidate_name: str = "",
+        interview_stage: str = "Technical Round",
+        conversation_history: list[dict[str, str]] | None = None,
     ) -> list[QuestionItem]:
         skills = resume_skills or []
-        total = max(8, min(12, total_questions))
+        total = max(5, min(5, total_questions))
         scenario_target, resume_target = self._target_counts(total, scenario_percentage, resume_validation_percentage)
 
         topics = self._extract_topics(hr_prompt, role, skills)
@@ -430,8 +703,16 @@ Return format:
   }}
 ]'''
 
+        system_prompt = self._build_hr_interviewer_system_prompt(
+            candidate_name=candidate_name,
+            job_role=role,
+            resume_summary=resume_summary,
+            interview_stage=interview_stage,
+            conversation_history=conversation_history,
+        )
+
         try:
-            data = self._extract_json(self._call(prompt))
+            data = self._extract_json(self._call(prompt, system_prompt=system_prompt))
             parsed: list[QuestionItem] = []
             scenario_count = 0
             resume_count = 0

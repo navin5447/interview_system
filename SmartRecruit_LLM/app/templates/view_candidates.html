@@ -190,6 +190,52 @@
     .reject-button:hover {
         background: rgba(244, 63, 94, 0.1);
     }
+
+    .custom-email-panel {
+        margin: 10px 0 24px;
+        padding: 18px;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border-subtle);
+        border-radius: 14px;
+        box-shadow: var(--shadow-soft);
+        display: none;
+    }
+
+    .custom-email-panel.active {
+        display: block;
+    }
+
+    .custom-email-panel label {
+        display: block;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--color-graphite);
+        margin: 10px 0 6px;
+    }
+
+    .custom-email-panel input,
+    .custom-email-panel textarea {
+        width: 100%;
+        border: 1px solid var(--color-border-subtle);
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-family: 'Montserrat', sans-serif;
+        font-size: 13px;
+        color: var(--color-graphite);
+        background: var(--color-surface);
+    }
+
+    .custom-email-panel textarea {
+        min-height: 150px;
+        resize: vertical;
+        line-height: 1.45;
+    }
+
+    .email-hint {
+        margin-top: 8px;
+        font-size: 12px;
+        color: #5b6678;
+    }
     
     /* Empty State */
     .empty-state {
@@ -301,8 +347,41 @@
         <form action="{{ url_for('main.run_shortlisting_now', job_id=job.id) }}" method="post" style="display:inline;">
             <button type="submit" class="view-interview-button">Run Shortlisting</button>
         </form>
+        <button type="button" class="view-interview-button" onclick="toggleCustomEmailPanel()">Customize Email</button>
         <a href="{{ url_for('main.shortlist_report', job_id=job.id) }}" class="view-interview-button">View Shortlist Report</a>
         <a href="{{ url_for('main.round_scoring_overview', job_id=job.id) }}" class="view-interview-button">Round Scoring</a>
+    </div>
+
+    <div id="custom-email-panel" class="custom-email-panel">
+        <form action="{{ url_for('main.send_custom_shortlisted_email', job_id=job.id) }}" method="post">
+            <h3 style="margin: 0 0 6px; color: var(--color-graphite);">Custom Email For All Shortlisted Candidates</h3>
+            <p class="email-hint">This sends to candidates currently in Shortlisted or Advanced status.</p>
+
+            <label for="email_subject">Email Subject</label>
+            <input
+                id="email_subject"
+                name="email_subject"
+                type="text"
+                value="You are shortlisted for {{ job.title }}"
+                required
+            />
+
+            <label for="email_body">Email Body</label>
+            <textarea id="email_body" name="email_body" required>Hi {first_name},
+
+Congratulations! You are shortlisted for {job_title} at {company_name}.
+Please check your dashboard for next steps.
+
+Regards,
+{company_name} Recruitment Team</textarea>
+
+            <p class="email-hint">Available placeholders: {first_name}, {last_name}, {full_name}, {job_title}, {company_name}, {application_id}</p>
+
+            <div style="margin-top: 12px; display:flex; gap:10px; flex-wrap:wrap;">
+                <button type="submit" class="view-interview-button">Send Custom Email To All Shortlisted</button>
+                <button type="button" class="view-interview-button" onclick="toggleCustomEmailPanel()">Cancel</button>
+            </div>
+        </form>
     </div>
     <table class="candidates-table">
         <thead>
@@ -336,4 +415,12 @@
         </tbody>
     </table>
 </div>
+
+<script>
+    function toggleCustomEmailPanel() {
+        const panel = document.getElementById('custom-email-panel');
+        if (!panel) return;
+        panel.classList.toggle('active');
+    }
+</script>
 {% endblock %}

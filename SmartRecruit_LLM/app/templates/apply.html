@@ -1,0 +1,566 @@
+{% extends "base.html" %}
+
+{% block title %}Apply for {{ job.title }}{% endblock %}
+
+{% block content %}
+<style>
+    .apply-wrapper {
+        padding: 20px 0;
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .apply-header {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 24px;
+        padding: 24px;
+        border-radius: 16px;
+        background: linear-gradient(135deg, rgba(115, 83, 246, 0.08), rgba(92, 201, 245, 0.08));
+        border: 1px solid rgba(115, 83, 246, 0.14);
+        box-shadow: var(--shadow-soft);
+    }
+
+    .apply-header h1 {
+        margin: 0;
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 36px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--color-graphite);
+    }
+
+    .apply-subtitle {
+        margin: 6px 0 0;
+        font-size: 16px;
+        color: var(--color-graphite);
+        opacity: 0.9;
+    }
+
+    .apply-card {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border-subtle);
+        border-radius: 16px;
+        padding: 24px;
+        box-shadow: var(--shadow-soft);
+    }
+
+    .section-title {
+        margin: 0 0 16px;
+        font-family: 'Bebas Neue', sans-serif;
+        font-size: 22px;
+        color: var(--color-purple);
+        text-transform: uppercase;
+        letter-spacing: 0.45px;
+    }
+
+    .resume-toggle {
+        display: inline-flex;
+        gap: 8px;
+        padding: 8px;
+        border-radius: 12px;
+        background: rgba(115, 83, 246, 0.08);
+        border: 1px solid rgba(115, 83, 246, 0.14);
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+    }
+
+    .resume-toggle-btn {
+        border: none;
+        border-radius: 10px;
+        background: transparent;
+        color: var(--color-graphite);
+        padding: 10px 14px;
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        cursor: pointer;
+        transition: var(--tran-fast);
+    }
+
+    .resume-toggle-btn.active {
+        background: var(--gradient-primary);
+        color: #fff;
+        box-shadow: var(--shadow-soft);
+    }
+
+    .panel {
+        border: 1px solid var(--color-border-subtle);
+        border-radius: 12px;
+        padding: 16px;
+        background: var(--color-surface);
+    }
+
+    .panel p {
+        margin: 0;
+        font-size: 15px;
+        color: var(--color-graphite);
+    }
+
+    .cv-name {
+        font-weight: 700;
+        color: var(--color-purple);
+        word-break: break-word;
+    }
+
+    .file-picker {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .file-input {
+        border: 1px solid var(--color-border-subtle);
+        border-radius: 10px;
+        background: var(--color-surface);
+        color: var(--color-graphite);
+        padding: 12px;
+        font-size: 14px;
+    }
+
+    .file-note {
+        margin: 0;
+        font-size: 14px;
+        color: var(--color-graphite);
+        opacity: 0.85;
+    }
+
+    .capture-panel {
+        margin-top: 24px;
+        border: 1px solid rgba(115, 83, 246, 0.2);
+        border-radius: 14px;
+        padding: 16px;
+        background: rgba(115, 83, 246, 0.03);
+    }
+
+    .capture-grid {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: 1.4fr 1fr;
+        align-items: start;
+    }
+
+    .camera-wrap {
+        background: #111;
+        border-radius: 12px;
+        overflow: hidden;
+        min-height: 260px;
+        position: relative;
+    }
+
+    .camera-preview {
+        width: 100%;
+        height: 100%;
+        min-height: 260px;
+        object-fit: cover;
+        display: block;
+    }
+
+    .capture-actions {
+        display: grid;
+        gap: 10px;
+    }
+
+    .capture-btn {
+        border: 1px solid var(--color-border-subtle);
+        border-radius: 10px;
+        background: #fff;
+        color: var(--color-graphite);
+        padding: 10px 12px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+    }
+
+    .capture-btn.done {
+        border-color: rgba(24, 160, 88, 0.45);
+        background: rgba(24, 160, 88, 0.12);
+        color: #147244;
+    }
+
+    .capture-btn:disabled {
+        opacity: 0.65;
+        cursor: not-allowed;
+    }
+
+    .capture-hint {
+        margin: 0;
+        font-size: 13px;
+        color: var(--color-graphite);
+        opacity: 0.88;
+    }
+
+    .capture-status {
+        margin-top: 10px;
+        font-size: 13px;
+        min-height: 18px;
+        color: #374151;
+    }
+
+    .capture-status.error {
+        color: #b91c1c;
+    }
+
+    .thumb-grid {
+        margin-top: 10px;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .thumb {
+        border: 1px dashed var(--color-border-subtle);
+        border-radius: 10px;
+        overflow: hidden;
+        min-height: 88px;
+        background: #f8fafc;
+        position: relative;
+    }
+
+    .thumb img {
+        width: 100%;
+        height: 88px;
+        object-fit: cover;
+        display: block;
+    }
+
+    .thumb span {
+        display: block;
+        text-align: center;
+        font-size: 11px;
+        font-weight: 700;
+        color: #475569;
+        padding: 4px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+
+    .form-actions {
+        margin-top: 20px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .btn-primary,
+    .btn-outline {
+        text-decoration: none;
+        border-radius: 10px;
+        padding: 11px 16px;
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.35px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        transition: var(--tran-fast);
+    }
+
+    .btn-primary {
+        border: none;
+        background: var(--gradient-primary);
+        color: #fff;
+        box-shadow: var(--shadow-soft);
+    }
+
+    .btn-outline {
+        border: 1px solid var(--color-border-subtle);
+        background: transparent;
+        color: var(--color-graphite);
+    }
+
+    .btn-primary:hover,
+    .btn-outline:hover {
+        transform: translateY(-1px);
+    }
+
+    .hidden {
+        display: none;
+    }
+
+    @media (max-width: 900px) {
+        .capture-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .apply-header h1 {
+            font-size: 30px;
+        }
+    }
+</style>
+
+<div class="apply-wrapper">
+    <div class="apply-header">
+        <i class="uil uil-file-alt" style="font-size:32px;color:var(--color-purple);"></i>
+        <div>
+            <h1>Apply Now</h1>
+            <p class="apply-subtitle">{{ job.title }} · {{ job.location }}</p>
+        </div>
+    </div>
+
+    <div class="apply-card">
+        <h2 class="section-title">Resume Selection</h2>
+
+        <form method="POST" enctype="multipart/form-data" action="{{ url_for('main.apply', job_id=job.id) }}" id="application-form" data-job-id="{{ job.id }}" data-has-profile-cv="{{ '1' if g.user.cv_file else '0' }}">
+            <div class="resume-toggle">
+                <button type="button" class="resume-toggle-btn active" data-tab="profile-tab">Use Profile Resume</button>
+                <button type="button" class="resume-toggle-btn" data-tab="new-upload-tab">Upload New Resume</button>
+            </div>
+
+            <div id="profile-tab" class="panel">
+                {% if g.user.cv_file %}
+                    <p>Your profile resume: <span class="cv-name">{{ g.user.cv_file }}</span></p>
+                    <input type="hidden" name="resume_choice" value="profile" id="resume-choice-profile">
+                {% else %}
+                    <p>No profile resume found. Please upload a new resume below.</p>
+                    <input type="hidden" name="resume_choice" value="new" id="resume-choice-profile-new">
+                {% endif %}
+            </div>
+
+            <div id="new-upload-tab" class="panel hidden">
+                <div class="file-picker">
+                    <input class="file-input" type="file" name="resume" id="resume-file-input" accept=".pdf,.doc,.docx">
+                    <p class="file-note" id="selected-file-note">No file selected</p>
+                </div>
+                <input type="hidden" name="resume_choice" value="new" id="resume-choice-new" disabled>
+            </div>
+
+            <div class="capture-panel">
+                <h2 class="section-title" style="margin-bottom:10px;">Face Capture (Required)</h2>
+                <p class="capture-hint">Capture all required angles using your webcam before submitting: front, left, right. Optional: tilt.</p>
+
+                <div class="capture-grid">
+                    <div class="camera-wrap">
+                        <video id="face-capture-video" class="camera-preview" autoplay muted playsinline></video>
+                        <canvas id="face-capture-canvas" class="hidden"></canvas>
+                    </div>
+
+                    <div class="capture-actions">
+                        <button type="button" class="capture-btn" data-angle="front">Capture Front</button>
+                        <button type="button" class="capture-btn" data-angle="left">Capture Left</button>
+                        <button type="button" class="capture-btn" data-angle="right">Capture Right</button>
+                        <button type="button" class="capture-btn" data-angle="tilt">Capture Tilt (Optional)</button>
+                        <p id="face-capture-status" class="capture-status">Waiting for webcam permission...</p>
+                    </div>
+                </div>
+
+                <div class="thumb-grid">
+                    <div class="thumb">
+                        <img id="thumb-front" alt="Front capture preview" class="hidden">
+                        <span>Front</span>
+                    </div>
+                    <div class="thumb">
+                        <img id="thumb-left" alt="Left capture preview" class="hidden">
+                        <span>Left</span>
+                    </div>
+                    <div class="thumb">
+                        <img id="thumb-right" alt="Right capture preview" class="hidden">
+                        <span>Right</span>
+                    </div>
+                </div>
+
+                <input type="hidden" name="face_front_ref" id="face-front-ref">
+                <input type="hidden" name="face_left_ref" id="face-left-ref">
+                <input type="hidden" name="face_right_ref" id="face-right-ref">
+                <input type="hidden" name="face_tilt_ref" id="face-tilt-ref">
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn-primary"><i class="uil uil-check-circle"></i>Submit Application</button>
+                <a href="{{ url_for('main.job_detail', job_id=job.id) }}" class="btn-outline"><i class="uil uil-arrow-left"></i>Back to Job</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const tabs = document.querySelectorAll('[data-tab]');
+    const profileTab = document.getElementById('profile-tab');
+    const newUploadTab = document.getElementById('new-upload-tab');
+    const resumeChoiceProfile = document.getElementById('resume-choice-profile');
+    const resumeChoiceProfileNew = document.getElementById('resume-choice-profile-new');
+    const resumeChoiceNew = document.getElementById('resume-choice-new');
+    const fileInput = document.getElementById('resume-file-input');
+    const fileName = document.getElementById('selected-file-note');
+
+    const form = document.getElementById('application-form');
+    const video = document.getElementById('face-capture-video');
+    const canvas = document.getElementById('face-capture-canvas');
+    const statusEl = document.getElementById('face-capture-status');
+    const uploadUrl = "{{ url_for('main.upload_face_capture') }}";
+    const jobId = Number(form.dataset.jobId || '0');
+
+    const faceRefs = {
+        front: document.getElementById('face-front-ref'),
+        left: document.getElementById('face-left-ref'),
+        right: document.getElementById('face-right-ref'),
+        tilt: document.getElementById('face-tilt-ref'),
+    };
+
+    const thumbs = {
+        front: document.getElementById('thumb-front'),
+        left: document.getElementById('thumb-left'),
+        right: document.getElementById('thumb-right'),
+    };
+
+    let faceDetector = null;
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(item => item.classList.remove('active'));
+            tab.classList.add('active');
+
+            if (tab.dataset.tab === 'profile-tab') {
+                profileTab.classList.remove('hidden');
+                newUploadTab.classList.add('hidden');
+                if (resumeChoiceProfile) resumeChoiceProfile.disabled = false;
+                if (resumeChoiceProfileNew) resumeChoiceProfileNew.disabled = true;
+                resumeChoiceNew.disabled = true;
+            } else {
+                profileTab.classList.add('hidden');
+                newUploadTab.classList.remove('hidden');
+                if (resumeChoiceProfile) resumeChoiceProfile.disabled = true;
+                if (resumeChoiceProfileNew) resumeChoiceProfileNew.disabled = false;
+                resumeChoiceNew.disabled = false;
+            }
+        });
+    });
+
+    if (fileInput) {
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                fileName.textContent = fileInput.files[0].name;
+            } else {
+                fileName.textContent = 'No file selected';
+            }
+        });
+    }
+
+    async function ensureFaceDetector() {
+        if (faceDetector) return faceDetector;
+        if (typeof window.FaceDetector === 'function') {
+            faceDetector = new window.FaceDetector({ maxDetectedFaces: 1, fastMode: true });
+        }
+        return faceDetector;
+    }
+
+    async function hasFaceInFrame() {
+        await ensureFaceDetector();
+        if (!faceDetector) {
+            return true;
+        }
+
+        const bitmap = await createImageBitmap(canvas);
+        try {
+            const faces = await faceDetector.detect(bitmap);
+            return Array.isArray(faces) && faces.length > 0;
+        } finally {
+            if (bitmap && typeof bitmap.close === 'function') {
+                bitmap.close();
+            }
+        }
+    }
+
+    function setCaptureStatus(message, isError = false) {
+        statusEl.textContent = message;
+        statusEl.classList.toggle('error', isError);
+    }
+
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            video.srcObject = stream;
+            await video.play();
+            setCaptureStatus('Camera ready. Capture front, left, and right angles.');
+        } catch (error) {
+            setCaptureStatus('Unable to access webcam. Please allow camera permission and refresh.', true);
+            document.querySelectorAll('.capture-btn').forEach(btn => {
+                btn.disabled = true;
+            });
+        }
+    }
+
+    async function uploadAngle(angle, button) {
+        if (!video.videoWidth || !video.videoHeight) {
+            setCaptureStatus('Camera not ready yet. Please wait.', true);
+            return;
+        }
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const foundFace = await hasFaceInFrame();
+        if (!foundFace) {
+            setCaptureStatus('No face detected. Keep your face in frame and try again.', true);
+            return;
+        }
+
+        const imageData = canvas.toDataURL('image/jpeg', 0.92);
+
+        button.disabled = true;
+        setCaptureStatus(`Uploading ${angle} capture...`);
+
+        try {
+            const response = await fetch(uploadUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    job_id: jobId,
+                    angle: angle,
+                    image_data: imageData,
+                }),
+            });
+
+            const payload = await response.json();
+            if (!response.ok || !payload.ok) {
+                throw new Error(payload.error || 'Upload failed');
+            }
+
+            faceRefs[angle].value = payload.face_ref;
+            button.classList.add('done');
+            button.textContent = `${button.textContent.split(' (')[0]} (Captured)`;
+
+            if (thumbs[angle]) {
+                thumbs[angle].src = imageData;
+                thumbs[angle].classList.remove('hidden');
+            }
+
+            setCaptureStatus(`${angle.charAt(0).toUpperCase() + angle.slice(1)} angle captured.`);
+        } catch (error) {
+            setCaptureStatus(error.message || 'Failed to upload image.', true);
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    document.querySelectorAll('.capture-btn').forEach(button => {
+        button.addEventListener('click', () => {
+            uploadAngle(button.dataset.angle, button);
+        });
+    });
+
+    form.addEventListener('submit', (event) => {
+        const missing = ['front', 'left', 'right'].filter(angle => !faceRefs[angle].value);
+        if (missing.length > 0) {
+            event.preventDefault();
+            setCaptureStatus(`Capture required angles before submit: ${missing.join(', ')}.`, true);
+        }
+    });
+
+    if ((form.dataset.hasProfileCv || '0') === '0') {
+        document.querySelector('[data-tab="new-upload-tab"]').click();
+    }
+
+    startCamera();
+});
+</script>
+{% endblock %}

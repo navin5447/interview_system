@@ -17,7 +17,7 @@ function HomePageContent() {
   const recruiterPrompt = searchParams.get("hr_prompt") || "";
   const resumeSummary = searchParams.get("resume_summary") || "";
   const resumeSkillsParam = searchParams.get("resume_skills") || "";
-  const totalQuestionsParam = Number(searchParams.get("total_questions") || "10");
+  const totalQuestionsParam = Number(searchParams.get("total_questions") || "5");
   const scenarioPctParam = Number(searchParams.get("scenario_percentage") || "35");
   const resumeValidationPctParam = Number(searchParams.get("resume_validation_percentage") || "25");
 
@@ -60,8 +60,8 @@ function HomePageContent() {
       };
 
       const safeTotalQuestions = Number.isFinite(totalQuestionsParam)
-        ? Math.max(8, Math.min(12, Math.round(totalQuestionsParam)))
-        : 10;
+        ? Math.max(5, Math.min(5, Math.round(totalQuestionsParam)))
+        : 5;
 
       const parsedResumeSkills = resumeSkillsParam
         .split(",")
@@ -86,6 +86,9 @@ function HomePageContent() {
       const session = await startSession({
         resumeId: mockResumeId,
         role: defaultSettings.role,
+        candidateName: candidateName || "Candidate",
+        interviewStage: "Technical Round",
+        conversationHistory: [],
         hrPrompt: defaultSettings.hrPrompt,
         scenarioPercentage: defaultSettings.scenarioPercentage,
         resumeValidationPercentage: defaultSettings.resumeValidationPercentage,

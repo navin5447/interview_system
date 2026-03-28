@@ -26,13 +26,16 @@ class QuestionItem(BaseModel):
 class StartSessionRequest(BaseModel):
     resume_id: str
     role: str
+    candidate_name: str = ""
+    interview_stage: str = "Technical Round"
+    conversation_history: list[dict[str, str]] = Field(default_factory=list)
     hr_prompt: str = ""
     resume_summary: str = ""
     resume_skills: list[str] = Field(default_factory=list)
     resume_raw_text: str = ""
     scenario_percentage: int = Field(default=35, ge=0, le=100)
     resume_validation_percentage: int = Field(default=25, ge=0, le=100)
-    total_questions: int = Field(default=10, ge=8, le=12)
+    total_questions: int = Field(default=5, ge=5, le=5)
 
 
 class StartSessionResponse(BaseModel):
@@ -71,6 +74,17 @@ class EvaluateResponse(BaseModel):
 
 class EndSessionRequest(BaseModel):
     session_id: str
+
+
+class NextQuestionRequest(BaseModel):
+    session_id: str
+    current_question_id: str
+
+
+class NextQuestionResponse(BaseModel):
+    question: QuestionItem | None = None
+    done: bool = False
+    total_questions: int = 5
 
 
 class TranscriptResponse(BaseModel):

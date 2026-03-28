@@ -7,13 +7,14 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from app.core.config import settings
-from app.models.schemas import AnalyzeFrameRequest, EndSessionRequest, EvaluateRequest, EvaluateResponse, ResumeParsedData, StartSessionRequest
+from app.models.schemas import AnalyzeFrameRequest, EndSessionRequest, EvaluateRequest, EvaluateResponse, NextQuestionRequest, NextQuestionResponse, ResumeParsedData, StartSessionRequest
 from app.services.claude_service import groq_service
 from app.services.emotion_service import analyze_frame
 from app.services.report_service import build_report
 from app.services.resume_parser import parse_resume_pdf
 from app.services.session_service import (
     append_response,
+    append_session_question,
     count_fillers,
     create_session,
     finalize_session,
@@ -51,6 +52,7 @@ async def upload_resume(file: UploadFile = File(...)):
 
 @router.post("/start-session")
 async def start_session(payload: StartSessionRequest):
+    total_questions = 5
     summary = (payload.resume_summary or "").strip()
     raw_text = (payload.resume_raw_text or "").strip()
     inline_skills = [str(skill).strip() for skill in (payload.resume_skills or []) if str(skill).strip()]
@@ -69,15 +71,20 @@ async def start_session(payload: StartSessionRequest):
     else:
         resume = get_resume(payload.resume_id)
 
-    questions = groq_service.generate_questions(
+    first_question = groq_service.generate_next_question(
         role=payload.role,
         resume_summary=resume.summary,
         resume_skills=resume.skills,
         hr_prompt=payload.hr_prompt,
-        scenario_percentage=payload.scenario_percentage,
-        resume_validation_percentage=payload.resume_validation_percentage,
-        total_questions=payload.total_questions,
+        candidate_name=payload.candidate_name,
+        interview_stage=payload.interview_stage,
+        conversation_history=payload.conversation_history,
+        asked_questions=[],
+        latest_answer="",
+        total_questions=total_questions,
+        question_number=1,
     )
+    questions = [first_question]
     session_id = create_session(
         resume_id,
         payload.role,
@@ -86,7 +93,9 @@ async def start_session(payload: StartSessionRequest):
         interview_config={
             "scenario_percentage": payload.scenario_percentage,
             "resume_validation_percentage": payload.resume_validation_percentage,
-            "total_questions": payload.total_questions,
+            "total_questions": total_questions,
+            "candidate_name": payload.candidate_name,
+            "interview_stage": payload.interview_stage,
         },
     )
 
@@ -113,8 +122,99 @@ async def start_session(payload: StartSessionRequest):
         "interview_config": {
             "scenario_percentage": payload.scenario_percentage,
             "resume_validation_percentage": payload.resume_validation_percentage,
-            "total_questions": payload.total_questions,
+            "total_questions": total_questions,
         },
+    }
+
+
+@router.post("/next-question", response_model=NextQuestionResponse)
+async def next_question(payload: NextQuestionRequest):
+    session = get_session(payload.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session_questions = json.loads(session["questions"] or "[]")
+    config = json.loads(session["interview_config"] or "{}")
+    total_questions = int(config.get("total_questions") or 5)
+    total_questions = max(1, min(5, total_questions))
+
+    current_idx = next((idx for idx, q in enumerate(session_questions) if q.get("id") == payload.current_question_id), -1)
+    if current_idx == -1:
+        raise HTTPException(status_code=400, detail="Current question id not found in session")
+
+    next_idx = current_idx + 1
+    if next_idx < len(session_questions):
+        return {
+            "question": session_questions[next_idx],
+            "done": next_idx >= (total_questions - 1),
+            "total_questions": total_questions,
+        }
+
+    if len(session_questions) >= total_questions:
+        return {
+            "question": None,
+            "done": True,
+            "total_questions": total_questions,
+        }
+
+    try:
+        resume = get_resume(session["resume_id"])
+        resume_summary = resume.summary
+        resume_skills = resume.skills
+    except Exception:
+        resume_summary = ""
+        resume_skills = []
+
+    bundle = get_session_bundle(payload.session_id)
+    responses = bundle.get("responses", [])
+
+    history: list[dict[str, str]] = []
+    for idx, q in enumerate(session_questions):
+        q_text = str(q.get("question", "")).strip()
+        if q_text:
+            history.append({"role": "interviewer", "text": q_text})
+        if idx < len(responses):
+            r_text = str(responses[idx].get("transcript", "")).strip()
+            if r_text:
+                history.append({"role": "candidate", "text": r_text})
+
+    latest_answer = ""
+    if responses:
+        latest_answer = str(responses[-1].get("transcript", "")).strip()
+
+    asked_questions = []
+    for q in session_questions:
+        asked_questions.append(
+            {
+                "question": str(q.get("question", "")),
+                "type": str(q.get("type", "")),
+                "pillar": "resume" if "resume" in str(q.get("type", "")).lower() else (
+                    "scenario" if "scenario" in str(q.get("type", "")).lower() else "role"
+                ),
+            }
+        )
+
+    q_number = len(session_questions) + 1
+    new_question = groq_service.generate_next_question(
+        role=session["role"] or "",
+        resume_summary=resume_summary,
+        resume_skills=resume_skills,
+        hr_prompt=(session["hr_prompt"] or ""),
+        candidate_name=str(config.get("candidate_name") or "Candidate"),
+        interview_stage=str(config.get("interview_stage") or "Technical Round"),
+        conversation_history=history,
+        asked_questions=asked_questions,
+        latest_answer=latest_answer,
+        total_questions=total_questions,
+        question_number=q_number,
+    )
+
+    append_session_question(payload.session_id, new_question)
+
+    return {
+        "question": new_question.model_dump(),
+        "done": q_number >= total_questions,
+        "total_questions": total_questions,
     }
 
 

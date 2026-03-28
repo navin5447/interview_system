@@ -9,7 +9,7 @@ import * as mpFaceDetection from "@mediapipe/face_detection";
 import AIAvatar from "@/components/AIAvatar";
 import ProgressHeader from "@/components/ProgressHeader";
 import WebcamPanel from "@/components/WebcamPanel";
-import { analyzeFrame, endSession, evaluateResponse, fetchTtsAudio, transcribeChunk } from "@/lib/api";
+import { analyzeFrame, endSession, evaluateResponse, fetchNextQuestion, fetchTtsAudio, transcribeChunk } from "@/lib/api";
 import { DEFAULT_PROXY_SCORE, getProxyPenalty, isFullscreenActive, requestFullscreenSafe } from "@/lib/proxyGuard";
 import type { ProxyViolation } from "@/lib/proxyGuard";
 import { createInterviewSocket } from "@/lib/ws";
@@ -180,6 +180,7 @@ export default function InterviewPage() {
   const violationCooldownRef = useRef<Record<string, number>>({});
 
   const questions = session?.questions ?? [];
+  const totalQuestions = session?.interviewConfig?.total_questions ?? questions.length;
   const question: QuestionItem | undefined = useMemo(() => questions[currentIdx], [questions, currentIdx]);
 
   const ensureVisionModels = useCallback(async () => {
@@ -641,7 +642,7 @@ export default function InterviewPage() {
       }
     }
 
-    if (currentIdx >= questions.length - 1) {
+    if (currentIdx >= totalQuestions - 1) {
       setStatus("Finalizing report...");
       const report = await endSession(session.sessionId);
       localStorage.setItem("interviewReport", JSON.stringify(report));
@@ -681,9 +682,42 @@ export default function InterviewPage() {
       return;
     }
 
+    const requestedNextIndex = currentIdx + 1;
+    if (requestedNextIndex >= questions.length) {
+      setStatus("Generating next question...");
+      try {
+        const nextResult = await fetchNextQuestion({
+          sessionId: session.sessionId,
+          currentQuestionId: question.id,
+        });
+
+        if (nextResult.question) {
+          setSession((prev) => {
+            if (!prev) return prev;
+            const exists = prev.questions.some((q) => q.id === nextResult.question!.id);
+            const mergedQuestions = exists ? prev.questions : [...prev.questions, nextResult.question!];
+            return {
+              ...prev,
+              questions: mergedQuestions,
+              interviewConfig: {
+                ...prev.interviewConfig,
+                total_questions: nextResult.total_questions || prev.interviewConfig.total_questions,
+              },
+            };
+          });
+        } else if (nextResult.done) {
+          setStatus("All interview questions completed. Click End Session.");
+          return;
+        }
+      } catch {
+        setStatus("Failed to generate next question. Please try again.");
+        return;
+      }
+    }
+
     setFollowUp("");
-    setCurrentIdx((idx: number) => idx + 1);
-  }, [currentIdx, isThinking, proxyScore, proxyViolations, question, questions.length, router, session, submitEvaluation]);
+    setCurrentIdx((idx: number) => Math.min(idx + 1, totalQuestions - 1));
+  }, [currentIdx, isThinking, proxyScore, proxyViolations, question, questions.length, router, session, submitEvaluation, totalQuestions]);
 
   const onStreamReady = useCallback((stream: MediaStream) => {
     streamRef.current = stream;
@@ -888,7 +922,7 @@ export default function InterviewPage() {
   return (
     <main className="mx-auto max-w-6xl px-4 py-6">
       <video ref={proxyVideoRef} className="hidden" muted playsInline />
-      <ProgressHeader current={currentIdx + 1} total={questions.length} />
+      <ProgressHeader current={Math.min(currentIdx + 1, totalQuestions)} total={Math.max(totalQuestions, 1)} />
 
       <div className="grid gap-4 md:grid-cols-2">
         <WebcamPanel emotion={emotion} subtitleText={liveSubtitle} onFrame={handleFrame} onStreamReady={onStreamReady} />
@@ -926,7 +960,7 @@ export default function InterviewPage() {
             className="brand-btn"
             disabled={isThinking}
           >
-            {currentIdx >= questions.length - 1 ? "End Session" : "Next Question"}
+            {currentIdx >= totalQuestions - 1 ? "End Session" : "Next Question"}
           </button>
         </div>
       </section>

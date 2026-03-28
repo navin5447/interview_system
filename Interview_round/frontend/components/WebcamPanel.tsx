@@ -61,7 +61,7 @@ export default function WebcamPanel({ emotion, subtitleText, onFrame, onStreamRe
       <div className="absolute left-4 top-4 rounded-full bg-graphite/90 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-white">
         {emotion.emotion} ({emotion.confidence.toFixed(1)}%)
       </div>
-      <div className="pointer-events-none absolute bottom-4 left-1/2 w-[92%] -translate-x-1/2 rounded-lg bg-black/65 px-3 py-2 text-center text-sm text-white shadow-lg">
+      <div className="pointer-events-none absolute bottom-4 left-1/2 w-[92%] -translate-x-1/2 overflow-hidden whitespace-nowrap text-ellipsis rounded-lg bg-black/65 px-3 py-2 text-center text-sm text-white shadow-lg">
         {subtitleText || "Live subtitles will appear here while you speak..."}
       </div>
     </div>

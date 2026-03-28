@@ -210,3 +210,19 @@ class Application(db.Model):
         return self.candidate_status
 
     __table_args__ = (db.UniqueConstraint('user_id', 'job_id', name='unique_user_job_application'),)
+
+
+class FaceCapture(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    application_id = db.Column(db.Integer, db.ForeignKey('application.id'), nullable=False, unique=True)
+    candidate_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    job_id = db.Column(db.Integer, db.ForeignKey('job.id'), nullable=False)
+    front_image_path = db.Column(db.String(255), nullable=False)
+    left_image_path = db.Column(db.String(255), nullable=False)
+    right_image_path = db.Column(db.String(255), nullable=False)
+    tilt_image_path = db.Column(db.String(255), nullable=True)
+    captured_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    application = db.relationship('Application', backref=db.backref('face_capture', uselist=False))
+    candidate = db.relationship('User', backref=db.backref('face_captures', lazy=True))
+    job = db.relationship('Job', backref=db.backref('face_captures', lazy=True))

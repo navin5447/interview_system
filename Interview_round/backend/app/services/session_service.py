@@ -187,7 +187,7 @@ def save_emotion(session_id: str, result: EmotionResult) -> None:
 def get_session_bundle(session_id: str) -> dict:
     with sqlite_conn() as conn:
         session = conn.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
-        responses = conn.execute("SELECT * FROM responses WHERE session_id = ?", (session_id,)).fetchall()
+        responses = conn.execute("SELECT * FROM responses WHERE session_id = ? ORDER BY created_at ASC", (session_id,)).fetchall()
         emotions = conn.execute("SELECT * FROM emotions WHERE session_id = ? ORDER BY ts", (session_id,)).fetchall()
 
     if not session:
@@ -248,3 +248,15 @@ def count_fillers(text: str) -> int:
     for filler in FILLERS:
         count += lowered.count(filler)
     return count
+
+
+def append_session_question(session_id: str, question: QuestionItem) -> list[dict]:
+    with sqlite_conn() as conn:
+        row = conn.execute("SELECT questions FROM sessions WHERE id = ?", (session_id,)).fetchone()
+        if not row:
+            raise ValueError("Session not found")
+
+        questions = json.loads(row["questions"] or "[]")
+        questions.append(question.model_dump())
+        conn.execute("UPDATE sessions SET questions = ? WHERE id = ?", (json.dumps(questions), session_id))
+        return questions

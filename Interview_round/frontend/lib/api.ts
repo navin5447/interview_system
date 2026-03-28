@@ -40,6 +40,9 @@ export async function uploadResume(file: File) {
 export async function startSession(payload: {
   resumeId: string;
   role: string;
+  candidateName?: string;
+  interviewStage?: string;
+  conversationHistory?: Array<{ role: string; text: string }>;
   hrPrompt: string;
   scenarioPercentage: number;
   resumeValidationPercentage: number;
@@ -63,6 +66,9 @@ export async function startSession(payload: {
     body: JSON.stringify({
       resume_id: payload.resumeId,
       role: payload.role,
+      candidate_name: payload.candidateName || "",
+      interview_stage: payload.interviewStage || "Technical Round",
+      conversation_history: payload.conversationHistory || [],
       hr_prompt: payload.hrPrompt,
       scenario_percentage: payload.scenarioPercentage,
       resume_validation_percentage: payload.resumeValidationPercentage,
@@ -162,6 +168,28 @@ export async function endSession(sessionId: string) {
   }, 30000);
 
   if (!res.ok) throw new Error("Failed to end session");
+  return res.json();
+}
+
+export async function fetchNextQuestion(payload: {
+  sessionId: string;
+  currentQuestionId: string;
+}): Promise<{
+  question: QuestionItem | null;
+  done: boolean;
+  total_questions: number;
+}> {
+  const apiBase = getApiBase();
+  const res = await fetchWithTimeout(`${apiBase}/api/next-question`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      session_id: payload.sessionId,
+      current_question_id: payload.currentQuestionId,
+    })
+  }, 20000);
+
+  if (!res.ok) throw new Error("Failed to fetch next question");
   return res.json();
 }
 
