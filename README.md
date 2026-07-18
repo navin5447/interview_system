@@ -9,7 +9,7 @@ The repository is modularized into several independent services, each with its o
 - **SmartRecruit_LLM**: The central Flask service for recruiting operations, AI-based resume parsing, and orchestration.
 - **MCQ-round**: Round 1 assessment focusing on Multiple Choice Questions (FastAPI backend + Static Frontend).
 - **DSA-round-2**: Round 2 assessment focusing on Data Structures and Algorithms (FastAPI backend + Vite React Frontend).
-- **Interview_round**: Round 3 live interview module (FastAPI backend + Next.js Frontend).
+- **Interview_round**: Round 3 live interview module (FastAPI backend + Next.js Frontend). **Production Roadmap:** We are currently designing a robust, enterprise-grade RAG (Retrieval-Augmented Generation) pipeline. This will utilize fine-tuned LLMs to dynamically generate context-aware questions and relevant follow-ups, ensuring high-fidelity, hallucination-free technical evaluations at scale.
 
 ## 🛠️ Prerequisites
 
