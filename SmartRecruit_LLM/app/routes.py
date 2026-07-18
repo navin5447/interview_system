@@ -925,7 +925,7 @@ def apply(job_id):
             flash('The resume file is too large. The maximum size is 5MB.', 'danger')
             return redirect(request.url)
 
-        if file and allowed_file(file.filename):
+        if file and allowed_file(file.filename, {'pdf', 'docx'}):
             resume_filename = secure_filename(file.filename)
             # Create a unique filename to avoid overwrites
             timestamp = datetime.utcnow().strftime('%Y%m%d%H%M%S')

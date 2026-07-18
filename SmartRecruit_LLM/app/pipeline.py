@@ -32,6 +32,7 @@ from .models import (
     RoundEvaluation,
     User,
 )
+from .testing_overrides import should_force_shortlist
 
 
 EMAIL_RETRY_LOCK = threading.Lock()
@@ -860,6 +861,13 @@ def run_shortlisting(job: Job, config: JobConfig) -> dict[str, Any]:
             ties_included = True
 
     shortlisted_ids = {item.application_id for item in shortlisted}
+    ranked_shortlisted_ids = set(shortlisted_ids)
+
+    # Testing override: always shortlist configured test accounts when they have applied.
+    for row in ats_rows:
+        applicant = User.query.get(row.applicant_id)
+        if applicant and should_force_shortlist(applicant.email):
+            shortlisted_ids.add(row.application_id)
 
     for row in ats_rows:
         app = Application.query.get(row.application_id)
@@ -870,7 +878,9 @@ def run_shortlisting(job: Job, config: JobConfig) -> dict[str, Any]:
         if row.application_id in shortlisted_ids:
             app.status = "Shortlisted"
             upsert_pipeline_state(app, "SHORTLISTED")
-            if float(row.ats_score) < threshold:
+            if row.application_id not in ranked_shortlisted_ids:
+                row.shortlist_reason = "Forced shortlist for testing account override"
+            elif float(row.ats_score) < threshold:
                 row.shortlist_reason = (
                     "Shortlisted by top ATS ranking (threshold ignored for ranking); "
                     f"score {row.ats_score:.2f} is below threshold {threshold:.2f}"
